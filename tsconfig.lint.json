@@ -4,5 +4,6 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/**/*.ts", ".eslintrc.cjs"],
+  "include": ["src/**/*.ts", ".eslintrc.cjs", ".prettierrc.cjs"],
+  "exclude": ["node_modules", "dist"]
 }

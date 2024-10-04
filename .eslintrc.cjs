@@ -95,6 +95,5 @@ module.exports = {
                 'no-undef': 'off',
             },
         },
-    ],
-    ignores: ['dist'],
+    ]
 };

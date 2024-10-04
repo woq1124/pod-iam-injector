@@ -10,6 +10,9 @@
   },
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "fastify": "^5.0.0"
+  },
   "devDependencies": {
     "@types/eslint": "^9.6.1",
     "@typescript-eslint/eslint-plugin": "^6.7.4",
