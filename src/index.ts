@@ -1,63 +1,46 @@
-import { KubeConfig, CoreV1Api } from '@kubernetes/client-node';
-import { generateKeyPair, exportSPKI, exportPKCS8, importSPKI, exportJWK } from 'jose';
-
-class KubernetesClient {
-    private kubeClient: CoreV1Api;
-
-    constructor() {
-        const kube = new KubeConfig();
-        kube.loadFromDefault(); // NOTE: 로컬 환경이면 ~/.kube/config를 사용하고 POD 환경이면 /var/run/secrets/kubernetes.io/serviceaccount/token을 사용한다.
-        this.kubeClient = kube.makeApiClient(CoreV1Api);
-    }
-
-    async getSecret(namespace: string, name: string) {
-        const secret = await this.kubeClient.readNamespacedSecret(name, namespace);
-        return secret.body.data;
-    }
-
-    async createSecret(namespace: string, name: string, data: Record<string, string>) {
-        const secret = await this.kubeClient.createNamespacedSecret(namespace, {
-            metadata: {
-                name,
-            },
-            data,
-        });
-        return secret.body;
-    }
-}
-
-async function initialize() {
-    const client = new KubernetesClient();
-    let secret = await client.getSecret('cicd', 'docker-config').catch((error) => {
-        if (error.response?.body?.code === 404) {
-            console.log('Secret not found in the namespace\nIt will be created');
-            return null;
-        } else {
-            throw error;
-        }
-    });
-
-    if (secret === null) {
-        const { publicKey, privateKey } = await generateKeyPair('RS256', { modulusLength: 2048 });
-        const publicSPKI = await exportSPKI(publicKey);
-        const privatePKCS8 = await exportPKCS8(privateKey);
-        const jwk = await importSPKI(publicSPKI, 'RS256');
-        const jwkExport = await exportJWK(jwk);
-        jwkExport.kid = 'test';
-        jwkExport.use = 'sig';
-        jwkExport.alg = 'RS256';
-        console.log(jwkExport);
-
-        // const data = {
-        //     publicKey: await exportSPKI(publicKey),
-        //     privateKey: await exportPKCS8(privateKey),
-        // };
-    }
-    console.log(secret);
-}
+import { fastify } from 'fastify';
+import configs from './configs';
+import provider from './libs/provider';
+import { AdmissionReview } from './types';
 
 async function main() {
-    await initialize();
+    await provider.initialize();
+    const server = fastify();
+
+    const jwks = await provider.generateJwksUriPayload();
+    const openIdConfiguration = await provider.generateWellKnownOpenIdConfigurationPayload();
+
+    server.get('/.well-known/openid-configuration', async (req, res) => {
+        res.send(openIdConfiguration);
+    });
+
+    server.get('/keys', async (req, res) => {
+        res.send(jwks);
+    });
+
+    server.post('/mutate', async (req, res) => {
+        const admissionReview = req.body as AdmissionReview;
+        const pod = admissionReview.request?.object;
+        const annotations = pod?.metadata?.annotations ?? {};
+
+        if (!annotations['iam.amazonaws.com/role']) {
+            res.send({
+                apiVersion: 'admission.k8s.io/v1',
+                kind: 'AdmissionReview',
+                response: {
+                    uid: admissionReview.request?.uid,
+                    allowed: true,
+                },
+            });
+            return;
+        }
+
+        const iamRole: string = annotations['iam.amazonaws.com/role'];
+    });
+
+    server.listen({ port: configs.port, host: configs.host }, (address) => {
+        console.log(`Server listening at ${address}`);
+    });
 }
 
 main();
