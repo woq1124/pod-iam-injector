@@ -15,7 +15,7 @@ class KubernetesClient {
                 data: null,
             },
         } = await this.kubeClient.readNamespacedSecret(name, namespace).catch((error) => {
-            if (error.response.body.code === 404) {
+            if (error.response?.body.code === 404) {
                 return { body: { data: null } };
             }
             throw error;
