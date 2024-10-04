@@ -1,3 +1,6 @@
+/**
+ * @type {import('eslint').Linter.Config}
+ */
 module.exports = {
     env: {
         es6: true,
@@ -93,4 +96,5 @@ module.exports = {
             },
         },
     ],
+    ignores: ['dist'],
 };
