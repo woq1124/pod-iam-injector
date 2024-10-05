@@ -115,8 +115,12 @@ async function main() {
         });
     });
 
-    server.listen({ port: configs.port, host: configs.host }, (address) => {
-        console.log(`Server listening at ${address}`);
+    server.listen({ port: configs.port, host: configs.host }, (err) => {
+        if (err) {
+            console.error(err);
+            process.exit(1);
+        }
+        console.log(`Server listening at ${configs.host}:${configs.port}`);
     });
 }
 
