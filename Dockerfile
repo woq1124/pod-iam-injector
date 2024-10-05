@@ -10,7 +10,7 @@ COPY . .
 
 RUN npm run build
 
-FROM public.ecr.aws/docker/library/node:20-alpine as runner
+FROM public.ecr.aws/docker/library/node:20-alpine AS runner
 
 WORKDIR /app
 
