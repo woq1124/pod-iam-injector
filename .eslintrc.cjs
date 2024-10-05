@@ -14,8 +14,6 @@ module.exports = {
         'airbnb-typescript/base',
         'plugin:import/recommended',
         'plugin:import/typescript',
-        'plugin:jest/recommended', // includes plugin: jest
-        'plugin:jest/style',
         'plugin:prettier/recommended', // includes plugin: prettier
     ],
     rules: {
