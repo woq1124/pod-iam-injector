@@ -10,6 +10,7 @@ class Provider {
     };
 
     async initialize() {
+        console.log('Initializing provider');
         const secret = await kubeClient.getSecret(configs.namespace, configs.secretName);
 
         if (secret) {

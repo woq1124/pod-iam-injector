@@ -16,10 +16,15 @@ function nonMutatingResponse(uid: string) {
 }
 
 async function main() {
+    console.log('Initializing provider');
     await provider.initialize();
+
+    console.log('Initializing server');
     const server = fastify();
 
     const jwks = await provider.generateJwksUriPayload();
+    console.log('Generated JWKS', jwks);
+
     const openIdConfiguration = await provider.generateWellKnownOpenIdConfigurationPayload();
 
     server.get('/healthz', async (req, res) => {
