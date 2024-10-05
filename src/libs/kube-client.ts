@@ -18,7 +18,8 @@ class KubernetesClient {
             if (error.response?.body.code === 404) {
                 return { body: { data: null } };
             }
-            throw error;
+            console.error(error.response?.body);
+            throw new Error('Failed to get secret');
         });
 
         if (!body.data) {
@@ -31,14 +32,20 @@ class KubernetesClient {
     }
 
     async createSecret(namespace: string, name: string, data: Record<string, string>) {
-        const secret = await this.kubeClient.createNamespacedSecret(namespace, {
-            metadata: {
-                name,
-            },
-            data: Object.fromEntries(
-                Object.entries(data).map(([key, value]) => [key, Buffer.from(value).toString('base64')]),
-            ),
-        });
+        const secret = await this.kubeClient
+            .createNamespacedSecret(namespace, {
+                metadata: {
+                    name,
+                },
+                data: Object.fromEntries(
+                    Object.entries(data).map(([key, value]) => [key, Buffer.from(value).toString('base64')]),
+                ),
+            })
+            .catch((error) => {
+                console.error(error.response?.body);
+                throw new Error('Failed to create secret');
+            });
+
         return secret.body;
     }
 }
