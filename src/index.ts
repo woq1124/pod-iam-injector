@@ -22,6 +22,10 @@ async function main() {
     const jwks = await provider.generateJwksUriPayload();
     const openIdConfiguration = await provider.generateWellKnownOpenIdConfigurationPayload();
 
+    server.get('/healthz', async (req, res) => {
+        res.send('ok');
+    });
+
     server.get('/.well-known/openid-configuration', async (req, res) => {
         res.send(openIdConfiguration);
     });
