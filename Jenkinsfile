@@ -1,10 +1,13 @@
 library identifier: 'pipeline-library', changelog: false
 
-worker('next-app') {
-    def namespace = 'next-app'
-    def deployment = 'next-app'
-    def containerName = 'next-app'
-    def imageName = 'next-app'
+worker('pod-iam-injector') {
+    def namespace = 'pod-iam-injector'
+    def deployment = 'pod-iam-injector'
+    def containerName = 'pod-iam-injector'
+    def imageName = 'pod-iam-injector'
+
+    def commitHash
+    def imageRepository
 
     stage('Checkout') {
         commitHash = it.checkout()
@@ -16,7 +19,7 @@ worker('next-app') {
 
     stage('Build') {
         container('docker') {
-            dockerBuild(imageName, "latest")
+            imageRepository = dockerBuild(imageName, commitHash.substring(0, 6), ["NODE_ENV=${env.NODE_ENV}", "COMMIT_HASH=${commitHash}"])
         }
     }
 
