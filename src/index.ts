@@ -35,6 +35,7 @@ async function main() {
     });
 
     server.post('/mutate', async (req, res) => {
+        console.log('Received request', req.body);
         const admissionReview = req.body as AdmissionReview;
 
         if (!admissionReview.request.object) {
