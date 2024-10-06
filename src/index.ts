@@ -94,14 +94,6 @@ async function main() {
 
         const patches: any[] = [];
 
-        if (!pod.spec.containers[0].env) {
-            patches.push({
-                op: 'add',
-                path: '/spec/containers/0/env',
-                value: [] as any,
-            });
-        }
-
         patches.push([
             {
                 op: 'add',
