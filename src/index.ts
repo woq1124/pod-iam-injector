@@ -60,11 +60,13 @@ async function main() {
             return;
         }
 
-        const { name, namespace, annotations } = pod.metadata;
+        const { name, generateName, namespace, annotations } = pod.metadata;
 
-        console.dir({ name, namespace, annotations }, { depth: 5 });
+        console.dir({ name, generateName, namespace, annotations }, { depth: 5 });
 
-        if (!name || !namespace || !annotations || !annotations['iam.amazonaws.com/role']) {
+        const podName = name ?? generateName?.split('-').slice(0, -2).join('-');
+
+        if (!podName || !annotations || !annotations['iam.amazonaws.com/role']) {
             res.send(nonMutatingResponse(admissionReview.request.uid));
             return;
         }
