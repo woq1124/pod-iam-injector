@@ -22,27 +22,27 @@ const tlsCert = fs.readFileSync(`${configs.certificatePath}/tls.crt`, 'utf8');
 async function main() {
     await provider.initialize();
 
-    const server = fastify({
-        logger: true,
-        https: { key: tlsKey, cert: tlsCert },
-    });
-
     const jwks = await provider.generateJwksUriPayload();
     const openIdConfiguration = await provider.generateWellKnownOpenIdConfigurationPayload();
-
-    server.get('/healthz', async (req, res) => {
+    const oidcProviderServer = fastify({ logger: true });
+    oidcProviderServer.get('/healthz', async (req, res) => {
         res.send('ok');
     });
-
-    server.get('/.well-known/openid-configuration', async (req, res) => {
+    oidcProviderServer.get('/.well-known/openid-configuration', async (req, res) => {
         res.send(openIdConfiguration);
     });
-
-    server.get('/keys', async (req, res) => {
+    oidcProviderServer.get('/keys', async (req, res) => {
         res.send(jwks);
     });
+    oidcProviderServer.listen({ port: 8080, host: '0.0.0.0' }, (err) => {
+        if (err) {
+            console.error(err);
+            process.exit(1);
+        }
+    });
 
-    server.post('/mutate', async (req, res) => {
+    const mutateWebhookServer = fastify({ logger: true, https: { key: tlsKey, cert: tlsCert } });
+    mutateWebhookServer.post('/mutate', async (req, res) => {
         console.dir(req.body, { depth: 5 });
         const admissionReview = req.body as AdmissionReview;
 
@@ -92,7 +92,17 @@ async function main() {
             }
         }
 
-        const patches = [
+        const patches: any[] = [];
+
+        if (!pod.spec.containers[0].env) {
+            patches.push({
+                op: 'add',
+                path: '/spec/containers/0/env',
+                value: [] as any,
+            });
+        }
+
+        patches.push([
             {
                 op: 'add',
                 path: '/spec/volumes/-',
@@ -127,7 +137,7 @@ async function main() {
                     value: iamRole,
                 },
             },
-        ];
+        ]);
 
         res.send({
             apiVersion: 'admission.k8s.io/v1',
@@ -140,8 +150,7 @@ async function main() {
             },
         });
     });
-
-    server.listen({ port: configs.port, host: configs.host }, (err) => {
+    mutateWebhookServer.listen({ port: 8443, host: '0.0.0.0' }, (err) => {
         if (err) {
             console.error(err);
             process.exit(1);
