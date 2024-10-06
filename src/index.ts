@@ -81,7 +81,7 @@ async function main() {
 
         console.dir({ iamRole, token }, { depth: 5 });
 
-        await kubeClient.createSecret(namespace, name, { token });
+        await kubeClient.createSecret(namespace, podName, { token });
 
         const patches = [
             {
