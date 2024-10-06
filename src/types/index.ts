@@ -36,7 +36,7 @@ export interface StatusCause {
 }
 
 /**
- * https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#statusdetails-v1-meta
+ * @see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#statusdetails-v1-meta
  */
 export interface StatusDetails {
     causes: StatusCause[];
@@ -48,7 +48,7 @@ export interface StatusDetails {
 }
 
 /**
- * https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#listmeta-v1-meta
+ * @see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#listmeta-v1-meta
  */
 export interface ListMeta {
     continue: string;

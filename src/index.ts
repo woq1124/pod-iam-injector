@@ -19,6 +19,9 @@ function nonMutatingResponse(uid: string) {
 const tlsKey = fs.readFileSync(`${configs.certificatePath}/tls.key`, 'utf8');
 const tlsCert = fs.readFileSync(`${configs.certificatePath}/tls.crt`, 'utf8');
 
+// TODO: 코드가 너무 더럽다. 리팩토링이 필요하다.
+// TODO: logger를 사용하자.
+// TODO: mutate webhook config를 앱에서 생성하는 것이 괜찮을듯...
 async function main() {
     await provider.initialize();
 
@@ -53,8 +56,6 @@ async function main() {
 
         const pod = admissionReview.request.object;
 
-        console.dir(pod, { depth: 5 });
-
         if (!pod.metadata) {
             res.send(nonMutatingResponse(admissionReview.request.uid));
             return;
@@ -62,9 +63,7 @@ async function main() {
 
         const { name, generateName, namespace, annotations } = pod.metadata;
 
-        console.dir({ name, generateName, namespace, annotations }, { depth: 5 });
-
-        const podName = name ?? generateName?.split('-').slice(0, -2).join('-');
+        const podName = name ?? generateName?.split('-').slice(0, -2).join('-'); // TODO: deployment로 생성되는 podName에 대한 것만 있음.
 
         if (!podName || !annotations || !annotations['iam.amazonaws.com/role']) {
             res.send(nonMutatingResponse(admissionReview.request.uid));
@@ -91,6 +90,7 @@ async function main() {
             }
         }
 
+        // TODO: 타입 정리 필요
         const patches: any[] = [];
 
         if (!pod.spec.containers[0].env) {

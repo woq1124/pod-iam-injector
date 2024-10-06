@@ -1,3 +1,4 @@
+// TODO: config 정리
 const config = {
     issuerUrl: process.env.ISSUER_URL ?? 'https://auth.example.com',
     audience: process.env.AUDIENCE ?? 'sts.amazonaws.com',

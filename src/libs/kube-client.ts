@@ -1,4 +1,4 @@
-import { KubeConfig, CoreV1Api } from '@kubernetes/client-node';
+import { KubeConfig, CoreV1Api, Watch } from '@kubernetes/client-node';
 
 class KubernetesClient {
     private kubeClient: CoreV1Api;

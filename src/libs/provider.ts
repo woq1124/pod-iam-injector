@@ -10,7 +10,11 @@ class Provider {
     };
 
     async initialize() {
+        // TODO: replicas가 1 초과일 때 시크릿이 여러개 만들려고 하는 문제가 있지 않을까?
+        // TODO: 시크릿을 한개만 만드는 것도 좀 이상한듯
         const secret = await kubeClient.getSecret(configs.namespace, configs.secretName);
+
+        console.log(secret);
 
         if (secret) {
             this.keyPair = {
@@ -19,7 +23,6 @@ class Provider {
                 privateKey: secret.privateKey,
             };
         } else {
-            console.log('Secret not found, generating new key pair');
             const { publicKey, privateKey } = await jose.generateKeyPair('RS256');
             const { k: kid = '' } = await jose.generateSecret('HS256').then(jose.exportJWK);
 
@@ -54,16 +57,8 @@ class Provider {
             .setIssuer(configs.issuerUrl)
             .setAudience(configs.audience)
             .setIssuedAt()
-            .setExpirationTime(exp)
+            .setExpirationTime(exp) // TODO: 팟에 주입된 토큰이 만료될 텐데... 이걸 어떻게 갱신하지? 크론잡?
             .sign(privateKey);
-    }
-
-    async decode(token: string) {
-        if (!this.keyPair) {
-            throw new Error('Key pair not initialized');
-        }
-        const publicKey = await jose.importSPKI(this.keyPair.publicKey, 'RSA');
-        return jose.jwtVerify(token, publicKey);
     }
 
     private async generateJwk() {
