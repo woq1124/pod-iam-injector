@@ -44,7 +44,7 @@ class Provider {
         }
     }
 
-    async sign(payload: { sub: string; name: string; group: string }) {
+    async sign({ exp, ...payload }: { sub: string; name: string; group: string; exp: string | number | Date }) {
         if (!this.keyPair) {
             throw new Error('Key pair not initialized');
         }
@@ -54,6 +54,7 @@ class Provider {
             .setIssuer(configs.issuerUrl)
             .setAudience(configs.audience)
             .setIssuedAt()
+            .setExpirationTime(exp)
             .sign(privateKey);
     }
 
