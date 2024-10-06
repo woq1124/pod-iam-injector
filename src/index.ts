@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { fastify } from 'fastify';
 import configs from './configs';
 import provider from './libs/provider';
@@ -16,11 +17,12 @@ function nonMutatingResponse(uid: string) {
 }
 
 async function main() {
-    console.log('Initializing provider');
-    await provider.initialize();
+    const { key, cert } = await provider.initialize();
 
-    console.log('Initializing server');
-    const server = fastify();
+    const server = fastify({
+        logger: true,
+        https: { key, cert },
+    });
 
     const jwks = await provider.generateJwksUriPayload();
     console.log('Generated JWKS', jwks);
