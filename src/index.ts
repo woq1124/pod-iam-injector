@@ -94,42 +94,52 @@ async function main() {
 
         const patches: any[] = [];
 
-        patches.push([
-            {
+        if (!pod.spec.containers[0].env) {
+            patches.push({
                 op: 'add',
-                path: '/spec/volumes/-',
-                value: {
-                    name: 'iam-token',
-                    secret: {
-                        secretName: podName,
+                path: '/spec/containers/0/env',
+                value: [] as any,
+            });
+        }
+
+        patches.push(
+            ...[
+                {
+                    op: 'add',
+                    path: '/spec/volumes/-',
+                    value: {
+                        name: 'iam-token',
+                        secret: {
+                            secretName: podName,
+                        },
                     },
                 },
-            },
-            {
-                op: 'add',
-                path: '/spec/containers/0/volumeMounts/-',
-                value: {
-                    name: 'iam-token',
-                    mountPath: '/var/run/secrets/iam',
+                {
+                    op: 'add',
+                    path: '/spec/containers/0/volumeMounts/-',
+                    value: {
+                        name: 'iam-token',
+                        mountPath: '/var/run/secrets/iam',
+                    },
                 },
-            },
-            {
-                op: 'add',
-                path: '/spec/containers/0/env/-',
-                value: {
-                    name: 'AWS_WEB_IDENTITY_TOKEN_FILE',
-                    value: '/var/run/secrets/iam/token',
+                {
+                    op: 'add',
+                    path: '/spec/containers/0/env/-',
+                    value: {
+                        name: 'AWS_WEB_IDENTITY_TOKEN_FILE',
+                        value: '/var/run/secrets/iam/token',
+                    },
                 },
-            },
-            {
-                op: 'add',
-                path: '/spec/containers/0/env/-',
-                value: {
-                    name: 'AWS_ROLE_ARN',
-                    value: iamRole,
+                {
+                    op: 'add',
+                    path: '/spec/containers/0/env/-',
+                    value: {
+                        name: 'AWS_ROLE_ARN',
+                        value: iamRole,
+                    },
                 },
-            },
-        ]);
+            ],
+        );
 
         res.send({
             apiVersion: 'admission.k8s.io/v1',
