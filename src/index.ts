@@ -43,7 +43,7 @@ async function main() {
     });
 
     server.post('/mutate', async (req, res) => {
-        console.log('Received request', req.body);
+        console.dir(req.body, { depth: 5 });
         const admissionReview = req.body as AdmissionReview;
 
         if (!admissionReview.request.object) {
@@ -53,12 +53,16 @@ async function main() {
 
         const pod = admissionReview.request.object;
 
+        console.dir(pod, { depth: 5 });
+
         if (!pod.metadata) {
             res.send(nonMutatingResponse(admissionReview.request.uid));
             return;
         }
 
         const { name, namespace, annotations } = pod.metadata;
+
+        console.dir({ name, namespace, annotations }, { depth: 5 });
 
         if (!name || !namespace || !annotations || !annotations['iam.amazonaws.com/role']) {
             res.send(nonMutatingResponse(admissionReview.request.uid));
@@ -72,6 +76,8 @@ async function main() {
             name,
             group: namespace,
         });
+
+        console.dir({ iamRole, token }, { depth: 5 });
 
         await kubeClient.createSecret(namespace, name, { token });
 
@@ -129,7 +135,6 @@ async function main() {
             console.error(err);
             process.exit(1);
         }
-        console.log(`Server listening at ${configs.host}:${configs.port}`);
     });
 }
 
