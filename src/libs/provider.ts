@@ -18,8 +18,6 @@ class Provider {
                 publicKey: secret.publicKey,
                 privateKey: secret.privateKey,
             };
-
-            return { key: secret.privateKey, cert: secret.publicKey };
         } else {
             console.log('Secret not found, generating new key pair');
             const { publicKey, privateKey } = await jose.generateKeyPair('RS256');
@@ -43,8 +41,6 @@ class Provider {
                 publicKey: publicSPKI,
                 privateKey: privatePKCS8,
             };
-
-            return { key: privatePKCS8, cert: publicSPKI };
         }
     }
 

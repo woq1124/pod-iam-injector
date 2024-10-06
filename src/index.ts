@@ -16,17 +16,18 @@ function nonMutatingResponse(uid: string) {
     };
 }
 
+const tlsKey = fs.readFileSync(`${configs.certificatePath}/tls.key`, 'utf8');
+const tlsCert = fs.readFileSync(`${configs.certificatePath}/tls.crt`, 'utf8');
+
 async function main() {
-    const { key, cert } = await provider.initialize();
+    await provider.initialize();
 
     const server = fastify({
         logger: true,
-        https: { key, cert },
+        https: { key: tlsKey, cert: tlsCert },
     });
 
     const jwks = await provider.generateJwksUriPayload();
-    console.log('Generated JWKS', jwks);
-
     const openIdConfiguration = await provider.generateWellKnownOpenIdConfigurationPayload();
 
     server.get('/healthz', async (req, res) => {

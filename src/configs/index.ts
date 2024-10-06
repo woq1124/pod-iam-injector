@@ -6,6 +6,7 @@ const config = {
     namespace: process.env.NAMESPACE ?? 'pod-iam-injector',
     podName: process.env.POD_NAME ?? 'pod-iam-injector',
     secretName: process.env.SECRET_NAME ?? 'jwt-key-pair',
+    certificatePath: process.env.CERTIFICATE_PATH ?? '/etc/webhook/certs',
 };
 
 export default config;
