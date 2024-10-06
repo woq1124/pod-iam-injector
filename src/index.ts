@@ -99,7 +99,7 @@ async function main() {
                 value: {
                     name: 'iam-token',
                     secret: {
-                        secretName: name,
+                        secretName: podName,
                     },
                 },
             },
