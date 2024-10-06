@@ -80,8 +80,6 @@ async function main() {
             exp: '24h',
         });
 
-        console.dir({ iamRole, token }, { depth: 5 });
-
         try {
             await kubeClient.createSecret(namespace, podName, { token });
         } catch (error: any) {

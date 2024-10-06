@@ -32,6 +32,7 @@ class KubernetesClient {
     }
 
     async createSecret(namespace: string, name: string, data: Record<string, string>) {
+        this.kubeClient.connectPatchNamespacedPodProxy;
         const secret = await this.kubeClient
             .createNamespacedSecret(namespace, {
                 metadata: {
