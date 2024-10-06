@@ -81,7 +81,16 @@ async function main() {
 
         console.dir({ iamRole, token }, { depth: 5 });
 
-        await kubeClient.createSecret(namespace, podName, { token });
+        try {
+            await kubeClient.createSecret(namespace, podName, { token });
+        } catch (error: any) {
+            if (error.response?.body.code !== 409) {
+                console.log('Secret already exists');
+            } else {
+                console.error(error.response?.body);
+                throw new Error('Failed to create secret');
+            }
+        }
 
         const patches = [
             {
