@@ -77,7 +77,7 @@ async function main() {
             sub: `system:pod:${namespace}:${name}`,
             name,
             group: namespace,
-            exp: '1m',
+            exp: '24h',
         });
 
         console.dir({ iamRole, token }, { depth: 5 });
