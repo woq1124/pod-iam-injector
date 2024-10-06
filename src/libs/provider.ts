@@ -1,98 +1,72 @@
 import * as jose from 'jose';
-import configs from '../configs';
-import kubeClient from './kube-client';
+import { AUDIENCE, ISSUER_URL } from '../configs';
 
-class Provider {
-    keyPair?: {
-        kid: string;
-        publicKey: string;
-        privateKey: string;
-    };
+type JsonWebKeyPair = {
+    kid: string;
+    publicKey: string;
+    privateKey: string;
+};
 
-    async initialize() {
-        // TODO: replicas가 1 초과일 때 시크릿이 여러개 만들려고 하는 문제가 있지 않을까?
-        // TODO: 시크릿을 한개만 만드는 것도 좀 이상한듯
-        const secret = await kubeClient.getSecret(configs.namespace, configs.secretName);
+class JsonWebKeyProvider {
+    constructor(private keyPairs: JsonWebKeyPair[]) {}
 
-        console.log(secret);
+    async sign({ exp, ...payload }: { sub: string; name: string; group: string; exp?: string | number | Date }) {
+        const { privateKey, kid } = this.keyPairs[Math.floor(Math.random() * this.keyPairs.length)];
+        const privatePKCS8 = await jose.importPKCS8(privateKey, 'RSA');
 
-        if (secret) {
-            this.keyPair = {
-                kid: secret.kid,
-                publicKey: secret.publicKey,
-                privateKey: secret.privateKey,
-            };
-        } else {
-            const { publicKey, privateKey } = await jose.generateKeyPair('RS256');
-            const { k: kid = '' } = await jose.generateSecret('HS256').then(jose.exportJWK);
-
-            const publicSPKI = await jose.exportSPKI(publicKey);
-            const privatePKCS8 = await jose.exportPKCS8(privateKey);
-
-            await kubeClient
-                .createSecret(configs.namespace, configs.secretName, {
-                    publicKey: publicSPKI,
-                    privateKey: privatePKCS8,
-                    kid,
-                })
-                .catch((error) => {
-                    console.log(error.response.body);
-                });
-
-            this.keyPair = {
-                kid,
-                publicKey: publicSPKI,
-                privateKey: privatePKCS8,
-            };
-        }
-    }
-
-    async sign({ exp, ...payload }: { sub: string; name: string; group: string; exp: string | number | Date }) {
-        if (!this.keyPair) {
-            throw new Error('Key pair not initialized');
-        }
-        const privateKey = await jose.importPKCS8(this.keyPair.privateKey, 'RSA');
         return new jose.SignJWT(payload)
-            .setProtectedHeader({ alg: 'RS256', kid: this.keyPair.kid })
-            .setIssuer(configs.issuerUrl)
-            .setAudience(configs.audience)
+            .setProtectedHeader({ alg: 'RS256', kid })
+            .setIssuer(ISSUER_URL)
+            .setAudience(AUDIENCE)
             .setIssuedAt()
-            .setExpirationTime(exp) // TODO: 팟에 주입된 토큰이 만료될 텐데... 이걸 어떻게 갱신하지? 크론잡?
-            .sign(privateKey);
+            .setExpirationTime(exp ?? '24h') // TODO: 팟에 주입된 토큰이 만료될 텐데... 이걸 어떻게 갱신하지? 크론잡?
+            .sign(privatePKCS8);
     }
 
-    private async generateJwk() {
-        if (!this.keyPair) {
-            throw new Error('Key pair not initialized');
-        }
-        const publicKey = await jose.importSPKI(this.keyPair.publicKey, 'RSA');
-        const publicJwk = await jose.exportJWK(publicKey);
+    async generateJwks() {
+        const jwks = await Promise.all(
+            this.keyPairs.map(async ({ kid, publicKey }) => {
+                const publicJwk = await jose.importSPKI(publicKey, 'RSA').then(jose.exportJWK);
 
-        publicJwk.kid = this.keyPair.kid;
-        publicJwk.use = 'sig';
-        publicJwk.alg = 'RS256';
-        return publicJwk;
+                publicJwk.kid = kid;
+                publicJwk.use = 'sig';
+                publicJwk.alg = 'RS256';
+
+                return publicJwk;
+            }),
+        );
+
+        return { keys: jwks };
     }
 
-    async generateJwksUriPayload() {
-        if (!this.keyPair) {
-            throw new Error('Key pair not initialized');
-        }
-        const jwk = await this.generateJwk();
-        return { keys: [jwk] };
-    }
-
-    async generateWellKnownOpenIdConfigurationPayload() {
+    async generateWellKnownOpenIdConfiguration() {
         return {
-            issuer: configs.issuerUrl,
-            authorization_endpoint: `${configs.issuerUrl}/auth`, // NOTE: Not implemented
-            token_endpoint: `${configs.issuerUrl}/token`, // NOTE: Not implemented
-            jwks_uri: `${configs.issuerUrl}/keys`,
+            issuer: ISSUER_URL,
+            authorization_endpoint: `${ISSUER_URL}/auth`, // NOTE: Not implemented
+            token_endpoint: `${ISSUER_URL}/token`, // NOTE: Not implemented
+            jwks_uri: `${ISSUER_URL}/keys`,
             response_types_supported: ['id_token'],
             subject_types_supported: ['public'],
             id_token_signing_alg_values_supported: ['RS256'],
         };
     }
+
+    static async generateKeyPairs(count: number) {
+        return Promise.all(
+            Array.from({ length: count }, async () => {
+                const { publicKey, privateKey } = await jose.generateKeyPair('RS256', { modulusLength: 2048 });
+                const { k = '' } = await jose.generateSecret('HS256').then(jose.exportJWK);
+                const publicSPKI = await jose.exportSPKI(publicKey);
+                const privatePKCS8 = await jose.exportPKCS8(privateKey);
+
+                return {
+                    kid: k,
+                    publicKey: publicSPKI,
+                    privateKey: privatePKCS8,
+                };
+            }),
+        );
+    }
 }
 
-export default new Provider();
+export default JsonWebKeyProvider;

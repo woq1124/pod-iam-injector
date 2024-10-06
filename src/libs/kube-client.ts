@@ -1,7 +1,26 @@
-import { KubeConfig, CoreV1Api, Watch } from '@kubernetes/client-node';
+import { KubeConfig, CoreV1Api } from '@kubernetes/client-node';
+
+function decodeValue(data: Record<string, string>) {
+    return Object.fromEntries(
+        Object.entries(data).map(([key, value]) => [key, Buffer.from(value, 'base64').toString('utf-8')]),
+    );
+}
+
+function encodeValue(data: Record<string, string>) {
+    return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, Buffer.from(value).toString('base64')]));
+}
+
+class KubernetesResponseError extends Error {
+    constructor(
+        message: string,
+        public response: any,
+    ) {
+        super(message);
+    }
+}
 
 class KubernetesClient {
-    private kubeClient: CoreV1Api;
+    kubeClient: CoreV1Api;
 
     constructor() {
         const kube = new KubeConfig();
@@ -9,45 +28,62 @@ class KubernetesClient {
         this.kubeClient = kube.makeApiClient(CoreV1Api);
     }
 
-    async getSecret(namespace: string, name: string) {
+    async listSecretes(
+        namespace: string,
+        params?: {
+            labelSelector?: string;
+        },
+    ) {
         const {
-            body = {
-                data: null,
-            },
-        } = await this.kubeClient.readNamespacedSecret(name, namespace).catch((error) => {
-            if (error.response?.body.code === 404) {
-                return { body: { data: null } };
-            }
-            console.error(error.response?.body);
-            throw new Error('Failed to get secret');
-        });
+            body: { items },
+        } = await this.kubeClient
+            .listNamespacedSecret(namespace, undefined, undefined, undefined, undefined, params?.labelSelector)
+            .catch((error) => {
+                throw new KubernetesResponseError(error.message, error.response?.body);
+            });
 
-        if (!body.data) {
-            return null;
-        }
-
-        return Object.fromEntries(
-            Object.entries(body.data).map(([key, value]) => [key, Buffer.from(value, 'base64').toString('utf-8')]),
-        );
+        return items.map((secret) => ({
+            name: secret.metadata?.name,
+            namespace: secret.metadata?.namespace,
+            data: secret.data && decodeValue(secret.data),
+        }));
     }
 
-    async createSecret(namespace: string, name: string, data: Record<string, string>) {
-        this.kubeClient.connectPatchNamespacedPodProxy;
-        const secret = await this.kubeClient
+    async getSecret(namespace: string, name: string) {
+        const { body } = await this.kubeClient.readNamespacedSecret(name, namespace).catch((error) => {
+            throw new KubernetesResponseError(error.message, error.response?.body);
+        });
+
+        return {
+            name: body.metadata?.name,
+            namespace: body.metadata?.namespace,
+            data: body.data && decodeValue(body.data),
+        };
+    }
+
+    async createSecret(
+        namespace: string,
+        name: string,
+        data: Record<string, string>,
+        params?: { labels?: Record<string, string> },
+    ) {
+        const { body } = await this.kubeClient
             .createNamespacedSecret(namespace, {
                 metadata: {
                     name,
+                    labels: params?.labels,
                 },
-                data: Object.fromEntries(
-                    Object.entries(data).map(([key, value]) => [key, Buffer.from(value).toString('base64')]),
-                ),
+                data: encodeValue(data),
             })
             .catch((error) => {
-                console.error(error.response?.body);
-                throw new Error('Failed to create secret');
+                throw new KubernetesResponseError(error.message, error.response?.body);
             });
 
-        return secret.body;
+        return {
+            name: body.metadata?.name,
+            namespace: body.metadata?.namespace,
+            data: body.data && decodeValue(body.data),
+        };
     }
 }
 

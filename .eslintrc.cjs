@@ -2,11 +2,7 @@
  * @type {import('eslint').Linter.Config}
  */
 module.exports = {
-    env: {
-        es6: true,
-        node: true,
-        'jest/globals': true,
-    },
+    env: { es6: true, node: true },
     parserOptions: {
         project: './tsconfig.lint.json',
     },
@@ -16,11 +12,14 @@ module.exports = {
         'plugin:import/typescript',
         'plugin:prettier/recommended', // includes plugin: prettier
     ],
+    parser: '@typescript-eslint/parser',
+    plugins: ['@typescript-eslint'],
     rules: {
         'prettier/prettier': 'error',
         eqeqeq: 'error',
         'spaced-comment': ['error', 'always', { markers: ['/'] }],
         'global-require': 'off',
+        'no-console': 'warn',
         'no-underscore-dangle': 'off',
         'no-param-reassign': 'off',
         'no-return-await': 'off',
@@ -71,11 +70,9 @@ module.exports = {
             },
         ],
     },
-    parser: '@typescript-eslint/parser',
-    plugins: ['@typescript-eslint'],
     settings: {
         'import/parsers': {
-            '@typescript-eslint/parser': ['.ts', '.tsx'],
+            '@typescript-eslint/parser': ['.ts'],
         },
         'import/resolver': {
             typescript: {
