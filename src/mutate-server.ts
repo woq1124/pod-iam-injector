@@ -156,7 +156,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                     path: `/spec/containers/${containerIndex}/env/-`,
                     value: {
                         name: 'AWS_WEB_IDENTITY_TOKEN_FILE',
-                        value: `var/run/secrets/${ISSUER_DOMAIN}/token`,
+                        value: `/var/run/secrets/${ISSUER_DOMAIN}/token`,
                     },
                 },
                 {
