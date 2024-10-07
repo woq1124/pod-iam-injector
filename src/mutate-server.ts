@@ -22,12 +22,14 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
     const mutateServer = fastify({ https: { key: tlsKey, cert: tlsCert } });
 
     mutateServer.post('/refresh', async (req, res) => {
+        console.log('refresh');
         await kubeClient
             .listSecret({
                 labelSelector: `app.kubernetes.io/component=id-token,app.kubernetes.io/managed-by=${NAME}`,
             })
-            .then(async (secrets) =>
-                Promise.all(
+            .then(async (secrets) => {
+                console.log('secrets', secrets);
+                return Promise.all(
                     secrets.map(async ({ name: secretName, namespace, data }) => {
                         if (!secretName || !namespace || !data?.token) {
                             return;
@@ -46,8 +48,8 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                             await kubeClient.patchNamespacedSecret(namespace, secretName, { token: idToken });
                         }
                     }),
-                ),
-            );
+                );
+            });
 
         res.send({ success: true });
     });
@@ -218,8 +220,11 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                 },
                 spec: {
                     schedule: REFRESH_ID_TOKEN_CRON,
+                    successfulJobsHistoryLimit: 0,
+                    failedJobsHistoryLimit: 1,
                     jobTemplate: {
                         spec: {
+                            backoffLimit: 3,
                             template: {
                                 spec: {
                                     containers: [
@@ -228,7 +233,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                                             image: 'curlimages/curl:latest',
                                             command: ['/bin/sh', '-c'],
                                             args: [
-                                                `curl -k /tmp/tls.cert https://${NAME}.${NAMESPACE}.svc:443/refresh`,
+                                                `curl -k -X POST https://${NAME}.${NAMESPACE}.svc:443/refresh`, // TODO: 생각해보니까 NAME은 service name이어야 하는데..
                                             ],
                                         },
                                     ],
