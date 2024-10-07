@@ -99,7 +99,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             group,
         });
 
-        const secretName = `id-token-${name}`;
+        const secretName = `${name}-iam-role-id-token`;
 
         await kubeClient.upsertNamespacedSecret(
             namespace,
@@ -200,6 +200,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
         logger.info(`Mutate server is listening on ${MUTATE_SEVER_PORT}`);
     });
 
+    // TODO: 이걸 어디로 빼야할까?
     await kubeClient.getNamespacedCronJob(NAMESPACE, 'refresh-id-token').catch((error) => {
         if (error instanceof KubernetesResponseError && error.data.code === 404) {
             return kubeClient.createNamespacedCronJob(NAMESPACE, {
