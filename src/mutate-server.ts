@@ -41,12 +41,10 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                             return;
                         }
 
-                        if (payload.exp * 1000 < Date.now()) {
-                            const { sub, name, group } = payload as { sub: string; name: string; group: string };
-                            const idToken = await jsonWebKeyProvider.sign({ sub, name, group });
+                        const { sub, name, group } = payload as { sub: string; name: string; group: string };
+                        const idToken = await jsonWebKeyProvider.sign({ sub, name, group });
 
-                            await kubeClient.patchNamespacedSecret(namespace, secretName, { token: idToken });
-                        }
+                        await kubeClient.patchNamespacedSecret(namespace, secretName, { token: idToken });
                     }),
                 );
             });
