@@ -54,6 +54,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
 
     mutateServer.post('/mutate', async (req, res) => {
         const { request } = req.body as AdmissionReview;
+        console.log('request', request);
 
         if (!request.object) {
             res.send(nonMutateResponse(request.uid));
@@ -62,6 +63,9 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
 
         const { metadata, spec } = request.object as V1Pod;
 
+        console.log('metadata', metadata);
+        console.log('spec', spec);
+
         if (!spec || !metadata?.annotations?.['iam.amazonaws.com/role']) {
             res.send(nonMutateResponse(request.uid));
             return;
@@ -69,6 +73,10 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
 
         const { namespace, annotations } = metadata;
         const { serviceAccountName } = spec;
+
+        console.log('namespace', namespace);
+        console.log('annotations', annotations);
+        console.log('serviceAccountName', serviceAccountName);
 
         const iamRole = annotations['iam.amazonaws.com/role'];
         const name = annotations[`${ISSUER_DOMAIN}/name`] ?? serviceAccountName;
@@ -99,7 +107,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             group,
         });
 
-        const secretName = `${name}-iam-role-id-token`;
+        const secretName = `${name}-id-token`;
 
         await kubeClient.upsertNamespacedSecret(
             namespace,
@@ -112,6 +120,9 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                 },
             },
         );
+
+        console.log('containerIndies', containerIndies);
+        console.log('secretName', secretName);
 
         const patches: MutatePatch[] = [];
 
@@ -179,6 +190,8 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                 },
             });
         }
+
+        console.log('patches', patches);
 
         res.send({
             apiVersion: 'admission.k8s.io/v1',
