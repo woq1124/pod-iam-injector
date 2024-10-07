@@ -2,11 +2,12 @@ import fs from 'fs';
 import { fastify } from 'fastify';
 import type { V1Pod } from '@kubernetes/client-node';
 import type JsonWebKeyProvider from './libs/provider';
+import kubeClient from './libs/kube-client';
 import logger from './libs/logger';
-import { CERTIFICATE_PATH, MUTATE_SEVER_PORT } from './configs';
-import { AdmissionReview } from './types';
+import { CERTIFICATE_PATH, ISSUER_URL, MUTATE_SEVER_PORT } from './configs';
+import { AdmissionReview, MutatePatch } from './types';
 
-function nonMutatingResponse(uid: string): Omit<AdmissionReview, 'request'> {
+function nonMutateResponse(uid: string): Omit<AdmissionReview, 'request'> {
     return {
         apiVersion: 'admission.k8s.io/v1',
         kind: 'AdmissionReview',
@@ -32,121 +33,122 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
         const admissionReview = req.body as AdmissionReview;
 
         if (!admissionReview.request.object) {
-            logger.warn('No object in admission review request');
-            res.send(nonMutatingResponse(admissionReview.request.uid));
+            res.send(nonMutateResponse(admissionReview.request.uid));
             return;
         }
 
-        const podSpec = admissionReview.request.object as V1Pod;
+        const podObject = admissionReview.request.object as V1Pod;
 
-        if (!podSpec.metadata) {
-            logger.warn('No metadata in pod spec');
-            res.send(nonMutatingResponse(admissionReview.request.uid));
+        if (!(podObject.kind !== 'Pod') || !podObject.metadata?.annotations || !podObject.spec) {
+            res.send(nonMutateResponse(admissionReview.request.uid));
             return;
         }
 
-        const { name, generateName, namespace, annotations } = podSpec.metadata;
-        console.log(podSpec);
+        const { namespace, annotations } = podObject.metadata;
+        const { serviceAccountName } = podObject.spec;
 
-        res.send(nonMutatingResponse(admissionReview.request.uid));
+        const name = annotations[`${ISSUER_URL}/name`] ?? serviceAccountName;
+        const group = annotations[`${ISSUER_URL}/group`] ?? namespace;
+        const iamRole = annotations['iam.amazonaws.com/role'];
+        const containerIndex = (() => {
+            const containerName = annotations['iam.amazonaws.com/container'];
+            if (!containerName) {
+                return 0;
+            }
+            return podObject.spec.containers.findIndex((container) => container.name === containerName);
+        })();
+
+        if (!name || !namespace || !group || !iamRole) {
+            res.send(nonMutateResponse(admissionReview.request.uid));
+            return;
+        }
+
+        const idToken = await jsonWebKeyProvider.sign({
+            sub: `system:pod:${namespace}:${name}`,
+            name,
+            group,
+        });
+
+        const secretName = `id-token-${name}`;
+
+        await kubeClient.createSecret(namespace, secretName, { token: idToken });
+
+        const patches: MutatePatch[] = [];
+
+        if (!podObject.spec.volumes) {
+            patches.push({
+                op: 'add',
+                path: '/spec/volumes',
+                value: [],
+            });
+        }
+
+        patches.push({
+            op: 'add',
+            path: '/spec/volumes/-',
+            value: {
+                name: 'id-token',
+                secret: {
+                    secretName,
+                },
+            },
+        });
+
+        if (!podObject.spec.containers[containerIndex].env) {
+            patches.push({
+                op: 'add',
+                path: `/spec/containers/${containerIndex}/env`,
+                value: [],
+            });
+        }
+
+        patches.push(
+            {
+                op: 'add',
+                path: `/spec/containers/${containerIndex}/env/-`,
+                value: {
+                    name: 'AWS_WEB_IDENTITY_TOKEN_FILE',
+                    value: '/var/run/secrets/iam/token',
+                },
+            },
+            {
+                op: 'add',
+                path: `/spec/containers/${containerIndex}/env/-`,
+                value: {
+                    name: 'AWS_ROLE_ARN',
+                    value: iamRole,
+                },
+            },
+        );
+
+        if (!podObject.spec.containers[containerIndex].volumeMounts) {
+            patches.push({
+                op: 'add',
+                path: `/spec/containers/${containerIndex}/volumeMounts`,
+                value: [],
+            });
+        }
+
+        patches.push({
+            op: 'add',
+            path: `/spec/containers/${containerIndex}/volumeMounts/-`,
+            value: {
+                name: 'id-token',
+                mountPath: '/var/run/secrets/iam/token',
+            },
+        });
+
+        res.send({
+            apiVersion: 'admission.k8s.io/v1',
+            kind: 'AdmissionReview',
+            response: {
+                uid: admissionReview.request.uid,
+                allowed: true,
+                patchType: 'JSONPatch',
+                patch: Buffer.from(JSON.stringify(patches)).toString('base64'),
+            },
+        });
     });
 }
 
 export default launchMutateServer;
-
-//     const { name, generateName, namespace, annotations } = pod.metadata;
-
-//     const podName = name ?? generateName?.split('-').slice(0, -2).join('-'); // TODO: deployment로 생성되는 podName에 대한 것만 있음.
-
-//     if (!podName || !annotations || !annotations['iam.amazonaws.com/role']) {
-//         res.send(nonMutatingResponse(admissionReview.request.uid));
-//         return;
-//     }
-
-//     const iamRole: string = annotations['iam.amazonaws.com/role'];
-
-//     const token = await provider.sign({
-//         sub: `system:pod:${namespace}:${name}`,
-//         name,
-//         group: namespace,
-//         exp: '24h',
-//     });
-
-//     try {
-//         await kubeClient.createSecret(namespace, podName, { token });
-//     } catch (error: any) {
-//         if (error.response?.body.code !== 409) {
-//             console.log('Secret already exists');
-//         } else {
-//             console.error(error.response?.body);
-//             throw new Error('Failed to create secret');
-//         }
-//     }
-
-//     // TODO: 타입 정리 필요
-//     const patches: any[] = [];
-
-//     if (!pod.spec.containers[0].env) {
-//         patches.push({
-//             op: 'add',
-//             path: '/spec/containers/0/env',
-//             value: [] as any,
-//         });
-//     }
-
-//     patches.push(
-//         ...[
-//             {
-//                 op: 'add',
-//                 path: '/spec/volumes/-',
-//                 value: {
-//                     name: 'iam-token',
-//                     secret: {
-//                         secretName: podName,
-//                     },
-//                 },
-//             },
-//             {
-//                 op: 'add',
-//                 path: '/spec/containers/0/volumeMounts/-',
-//                 value: {
-//                     name: 'iam-token',
-//                     mountPath: '/var/run/secrets/iam',
-//                 },
-//             },
-//             {
-//                 op: 'add',
-//                 path: '/spec/containers/0/env/-',
-//                 value: {
-//                     name: 'AWS_WEB_IDENTITY_TOKEN_FILE',
-//                     value: '/var/run/secrets/iam/token',
-//                 },
-//             },
-//             {
-//                 op: 'add',
-//                 path: '/spec/containers/0/env/-',
-//                 value: {
-//                     name: 'AWS_ROLE_ARN',
-//                     value: iamRole,
-//                 },
-//             },
-//         ],
-//     );
-
-//     res.send({
-//         apiVersion: 'admission.k8s.io/v1',
-//         kind: 'AdmissionReview',
-//         response: {
-//             uid: admissionReview.request.uid,
-//             allowed: true,
-//             patchType: 'JSONPatch',
-//             patch: Buffer.from(JSON.stringify(patches)).toString('base64'),
-//         },
-//     });
-// });
-// mutateWebhookServer.listen({ port: 8443, host: '0.0.0.0' }, (err) => {
-//     if (err) {
-//         console.error(err);
-//         process.exit(1);
-//     }
-// });

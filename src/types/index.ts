@@ -114,3 +114,9 @@ export interface AdmissionReview {
     request: AdmissionRequest;
     response: AdmissionResponse;
 }
+
+export interface MutatePatch {
+    op: 'add' | 'remove' | 'replace';
+    path: string;
+    value?: any;
+}

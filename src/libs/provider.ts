@@ -1,5 +1,5 @@
 import * as jose from 'jose';
-import { AUDIENCE, ISSUER_URL } from '../configs';
+import { AUDIENCE, ID_TOKEN_EXPIRES_IN, ISSUER_URL } from '../configs';
 
 type JsonWebKeyPair = {
     kid: string;
@@ -10,7 +10,7 @@ type JsonWebKeyPair = {
 class JsonWebKeyProvider {
     constructor(private keyPairs: JsonWebKeyPair[]) {}
 
-    async sign({ exp, ...payload }: { sub: string; name: string; group: string; exp?: string | number | Date }) {
+    async sign(payload: { sub: string; name: string; group: string }) {
         const { privateKey, kid } = this.keyPairs[Math.floor(Math.random() * this.keyPairs.length)];
         const privatePKCS8 = await jose.importPKCS8(privateKey, 'RSA');
 
@@ -19,7 +19,7 @@ class JsonWebKeyProvider {
             .setIssuer(ISSUER_URL)
             .setAudience(AUDIENCE)
             .setIssuedAt()
-            .setExpirationTime(exp ?? '24h') // TODO: 팟에 주입된 토큰이 만료될 텐데... 이걸 어떻게 갱신하지? 크론잡?
+            .setExpirationTime(ID_TOKEN_EXPIRES_IN) // TODO: 팟에 주입된 토큰이 만료될 텐데... 이걸 어떻게 갱신하지? 크론잡?
             .sign(privatePKCS8);
     }
 
