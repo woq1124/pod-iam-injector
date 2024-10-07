@@ -228,7 +228,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                                             image: 'curlimages/curl:latest',
                                             command: ['/bin/sh', '-c'],
                                             args: [
-                                                `curl --k /tmp/tls.cert https://${NAME}.${NAMESPACE}.svc:443/refresh`,
+                                                `curl -k /tmp/tls.cert https://${NAME}.${NAMESPACE}.svc:443/refresh`,
                                             ],
                                         },
                                     ],
