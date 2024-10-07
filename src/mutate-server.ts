@@ -20,7 +20,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
 
     const mutateServer = fastify({ https: { key: tlsKey, cert: tlsCert } });
 
-    mutateServer.listen({ port: MUTATE_SEVER_PORT }, (error) => {
+    mutateServer.listen({ port: MUTATE_SEVER_PORT, host: '0.0.0.0' }, (error) => {
         if (error) {
             logger.error(error.message, { error });
             process.exit(1);
