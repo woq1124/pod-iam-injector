@@ -15,10 +15,10 @@ function nonMutatingResponse(uid: string): Omit<AdmissionReview, 'request'> {
 }
 
 async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
-    // const tlsKey = fs.readFileSync(`${CERTIFICATE_PATH}/tls.key`, 'utf8');
-    // const tlsCert = fs.readFileSync(`${CERTIFICATE_PATH}/tls.crt`, 'utf8');
+    const tlsKey = fs.readFileSync(`${CERTIFICATE_PATH}/tls.key`, 'utf8');
+    const tlsCert = fs.readFileSync(`${CERTIFICATE_PATH}/tls.crt`, 'utf8');
 
-    const mutateServer = fastify({ https: {} });
+    const mutateServer = fastify({ https: { key: tlsKey, cert: tlsCert } });
 
     mutateServer.listen({ port: MUTATE_SEVER_PORT }, (error) => {
         if (error) {
