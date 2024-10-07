@@ -201,7 +201,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
     });
 
     await kubeClient.getNamespacedCronJob(NAMESPACE, 'refresh-id-token').catch((error) => {
-        if (error instanceof KubernetesResponseError && error.response?.body.statusCode === 404) {
+        if (error instanceof KubernetesResponseError && error.response?.body.code === 404) {
             return kubeClient.createNamespacedCronJob(NAMESPACE, {
                 metadata: {
                     name: 'refresh-id-token',
