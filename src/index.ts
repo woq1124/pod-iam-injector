@@ -6,7 +6,7 @@ import launchMutateServer from './mutate-server';
 import launchOidcProvider from './oidc-provider';
 
 async function main() {
-    const secrets = await kubeClient.listSecretes('pod-iam-injector', {
+    const secrets = await kubeClient.listNamespacedSecretes('pod-iam-injector', {
         labelSelector: 'app.kubernetes.io/component=json-web-key',
     });
 
@@ -14,9 +14,14 @@ async function main() {
         const newKeyPairs = await JsonWebKeyProvider.generateKeyPairs(JSON_WEB_KEY_COUNT - secrets.length);
         const newSecrets = await Promise.all(
             newKeyPairs.map((keyPair) =>
-                kubeClient.createSecret('pod-iam-injector', `json-web-key-${keyPair.kid.substring(0, 6)}`, keyPair, {
-                    labels: { 'app.kubernetes.io/component': 'json-web-key' },
-                }),
+                kubeClient.createNamespacedSecret(
+                    'pod-iam-injector',
+                    `json-web-key-${keyPair.kid.substring(0, 6)}`,
+                    keyPair,
+                    {
+                        labels: { 'app.kubernetes.io/component': 'json-web-key' },
+                    },
+                ),
             ),
         );
         secrets.push(...newSecrets);

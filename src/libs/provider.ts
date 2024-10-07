@@ -8,11 +8,38 @@ type JsonWebKeyPair = {
 };
 
 class JsonWebKeyProvider {
+    private keySets?: Record<string, { publicKey: jose.KeyLike; privateKey: jose.KeyLike }>;
+
     constructor(private keyPairs: JsonWebKeyPair[]) {}
 
+    async getKeySets() {
+        if (!this.keySets) {
+            this.keySets = await Promise.all(
+                this.keyPairs.map(async ({ kid, publicKey, privateKey }) => {
+                    const publicSPKI = await jose.importSPKI(publicKey, 'RSA');
+                    const privatePKCS8 = await jose.importPKCS8(privateKey, 'RSA');
+
+                    return {
+                        kid,
+                        publicKey: publicSPKI,
+                        privateKey: privatePKCS8,
+                    };
+                }),
+            ).then((keyList) => {
+                return keyList.reduce(
+                    (acc, { kid, publicKey, privateKey }) => {
+                        return { ...acc, [kid]: { publicKey, privateKey } };
+                    },
+                    {} as Record<string, { publicKey: jose.KeyLike; privateKey: jose.KeyLike }>,
+                );
+            });
+        }
+        return this.keySets;
+    }
+
     async sign(payload: { sub: string; name: string; group: string }) {
-        const { privateKey, kid } = this.keyPairs[Math.floor(Math.random() * this.keyPairs.length)];
-        const privatePKCS8 = await jose.importPKCS8(privateKey, 'RSA');
+        const { kid } = this.keyPairs[Math.floor(Math.random() * this.keyPairs.length)];
+        const keySets = await this.getKeySets();
 
         return new jose.SignJWT(payload)
             .setProtectedHeader({ alg: 'RS256', kid })
@@ -20,7 +47,16 @@ class JsonWebKeyProvider {
             .setAudience(AUDIENCE)
             .setIssuedAt()
             .setExpirationTime(ID_TOKEN_EXPIRES_IN) // TODO: 팟에 주입된 토큰이 만료될 텐데... 이걸 어떻게 갱신하지? 크론잡?
-            .sign(privatePKCS8);
+            .sign(keySets[kid].privateKey);
+    }
+
+    async verify(idToken: string) {
+        return jose.jwtVerify(idToken, async (header) => {
+            const { kid } = header as { kid: string };
+            const keySets = await this.getKeySets();
+
+            return keySets[kid].publicKey;
+        });
     }
 
     async generateJwks() {

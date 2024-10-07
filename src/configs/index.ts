@@ -1,4 +1,5 @@
-export const ISSUER_URL = process.env.ISSUER_URL ?? 'https://sts.example.com';
+export const ISSUER_DOMAIN = process.env.ISSUER_DOMAIN ?? 'sts.example.com';
+export const ISSUER_URL = `https://${ISSUER_DOMAIN}`;
 export const AUDIENCE = process.env.AUDIENCE ?? 'sts.amazonaws.com';
 export const CERTIFICATE_PATH = process.env.CERTIFICATE_PATH ?? '/etc/webhook/certs';
 export const JSON_WEB_KEY_PREFIX = process.env.JSON_WEB_KEY_PREFIX ?? 'json-web-key';

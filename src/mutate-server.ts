@@ -4,7 +4,7 @@ import type { V1Pod } from '@kubernetes/client-node';
 import type JsonWebKeyProvider from './libs/provider';
 import kubeClient from './libs/kube-client';
 import logger from './libs/logger';
-import { CERTIFICATE_PATH, ISSUER_URL, MUTATE_SEVER_PORT } from './configs';
+import { CERTIFICATE_PATH, ISSUER_DOMAIN, MUTATE_SEVER_PORT } from './configs';
 import { AdmissionReview, MutatePatch } from './types';
 
 function nonMutateResponse(uid: string): Omit<AdmissionReview, 'request'> {
@@ -21,45 +21,75 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
 
     const mutateServer = fastify({ https: { key: tlsKey, cert: tlsCert } });
 
-    mutateServer.listen({ port: MUTATE_SEVER_PORT, host: '0.0.0.0' }, (error) => {
-        if (error) {
-            logger.error(error.message, { error });
-            process.exit(1);
-        }
-        logger.info(`Mutate server is listening on ${MUTATE_SEVER_PORT}`);
+    mutateServer.post('/refresh', async (req, res) => {
+        await kubeClient
+            .listSecret({
+                labelSelector: 'app.kubernetes.io/component=id-token,app.kubernetes.io/managed-by=pod-iam-injector',
+            })
+            .then(async (secrets) =>
+                Promise.all(
+                    secrets.map(async ({ name: secretName, namespace, data }) => {
+                        if (!secretName || !namespace || !data?.token) {
+                            return;
+                        }
+
+                        const { payload } = await jsonWebKeyProvider.verify(data.token);
+
+                        if (!payload.exp) {
+                            return;
+                        }
+
+                        if (payload.exp * 1000 < Date.now()) {
+                            const { sub, name, group } = payload as { sub: string; name: string; group: string };
+                            const idToken = await jsonWebKeyProvider.sign({ sub, name, group });
+
+                            await kubeClient.patchNamespacedSecret(namespace, secretName, { token: idToken });
+                        }
+                    }),
+                ),
+            );
+
+        res.send({ success: true });
     });
 
     mutateServer.post('/mutate', async (req, res) => {
-        const admissionReview = req.body as AdmissionReview;
+        const { request } = req.body as AdmissionReview;
 
-        if (!admissionReview.request.object) {
-            res.send(nonMutateResponse(admissionReview.request.uid));
+        if (!request.object) {
+            res.send(nonMutateResponse(request.uid));
             return;
         }
 
-        const podObject = admissionReview.request.object as V1Pod;
+        const { metadata, spec } = request.object as V1Pod;
 
-        if (!(podObject.kind !== 'Pod') || !podObject.metadata?.annotations || !podObject.spec) {
-            res.send(nonMutateResponse(admissionReview.request.uid));
+        if (!spec || !metadata?.annotations?.['iam.amazonaws.com/role']) {
+            res.send(nonMutateResponse(request.uid));
             return;
         }
 
-        const { namespace, annotations } = podObject.metadata;
-        const { serviceAccountName } = podObject.spec;
+        const { namespace, annotations } = metadata;
+        const { serviceAccountName } = spec;
 
-        const name = annotations[`${ISSUER_URL}/name`] ?? serviceAccountName;
-        const group = annotations[`${ISSUER_URL}/group`] ?? namespace;
         const iamRole = annotations['iam.amazonaws.com/role'];
-        const containerIndex = (() => {
-            const containerName = annotations['iam.amazonaws.com/container'];
-            if (!containerName) {
-                return 0;
+        const name = annotations[`${ISSUER_DOMAIN}/name`] ?? serviceAccountName;
+        const group = annotations[`${ISSUER_DOMAIN}/group`] ?? namespace;
+        const containerIndies = (() => {
+            const injectRequiredContainerNameSet = new Set(
+                (annotations[`${ISSUER_DOMAIN}/inject-containers`] ?? '')
+                    .split(',')
+                    .map((containerName) => containerName.trim()),
+            );
+            if (!injectRequiredContainerNameSet.size) {
+                return [0];
             }
-            return podObject.spec.containers.findIndex((container) => container.name === containerName);
+
+            return spec.containers
+                .filter(({ name: containerName }) => injectRequiredContainerNameSet.has(containerName))
+                .map((_, index) => index);
         })();
 
         if (!name || !namespace || !group || !iamRole) {
-            res.send(nonMutateResponse(admissionReview.request.uid));
+            res.send(nonMutateResponse(request.uid));
             return;
         }
 
@@ -71,11 +101,21 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
 
         const secretName = `id-token-${name}`;
 
-        await kubeClient.createSecret(namespace, secretName, { token: idToken });
+        await kubeClient.upsertNamespacedSecret(
+            namespace,
+            secretName,
+            { token: idToken },
+            {
+                labels: {
+                    'app.kubernetes.io/component': 'id-token',
+                    'app.kubernetes.io/managed-by': 'pod-iam-injector',
+                },
+            },
+        );
 
         const patches: MutatePatch[] = [];
 
-        if (!podObject.spec.volumes) {
+        if (!spec.volumes) {
             patches.push({
                 op: 'add',
                 path: '/spec/volumes',
@@ -94,60 +134,70 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             },
         });
 
-        if (!podObject.spec.containers[containerIndex].env) {
+        for (const containerIndex of containerIndies) {
+            if (!spec.containers[containerIndex].env) {
+                patches.push({
+                    op: 'add',
+                    path: `/spec/containers/${containerIndex}/env`,
+                    value: [],
+                });
+            }
+
+            patches.push(
+                {
+                    op: 'add',
+                    path: `/spec/containers/${containerIndex}/env/-`,
+                    value: {
+                        name: 'AWS_WEB_IDENTITY_TOKEN_FILE',
+                        value: `var/run/secrets/${ISSUER_DOMAIN}/token`,
+                    },
+                },
+                {
+                    op: 'add',
+                    path: `/spec/containers/${containerIndex}/env/-`,
+                    value: {
+                        name: 'AWS_ROLE_ARN',
+                        value: iamRole,
+                    },
+                },
+            );
+
+            if (!spec.containers[containerIndex].volumeMounts) {
+                patches.push({
+                    op: 'add',
+                    path: `/spec/containers/${containerIndex}/volumeMounts`,
+                    value: [],
+                });
+            }
+
             patches.push({
                 op: 'add',
-                path: `/spec/containers/${containerIndex}/env`,
-                value: [],
+                path: `/spec/containers/${containerIndex}/volumeMounts/-`,
+                value: {
+                    name: 'id-token',
+                    mountPath: `var/run/secrets/${ISSUER_DOMAIN}/token`,
+                },
             });
         }
-
-        patches.push(
-            {
-                op: 'add',
-                path: `/spec/containers/${containerIndex}/env/-`,
-                value: {
-                    name: 'AWS_WEB_IDENTITY_TOKEN_FILE',
-                    value: '/var/run/secrets/iam/token',
-                },
-            },
-            {
-                op: 'add',
-                path: `/spec/containers/${containerIndex}/env/-`,
-                value: {
-                    name: 'AWS_ROLE_ARN',
-                    value: iamRole,
-                },
-            },
-        );
-
-        if (!podObject.spec.containers[containerIndex].volumeMounts) {
-            patches.push({
-                op: 'add',
-                path: `/spec/containers/${containerIndex}/volumeMounts`,
-                value: [],
-            });
-        }
-
-        patches.push({
-            op: 'add',
-            path: `/spec/containers/${containerIndex}/volumeMounts/-`,
-            value: {
-                name: 'id-token',
-                mountPath: '/var/run/secrets/iam/token',
-            },
-        });
 
         res.send({
             apiVersion: 'admission.k8s.io/v1',
             kind: 'AdmissionReview',
             response: {
-                uid: admissionReview.request.uid,
+                uid: request.uid,
                 allowed: true,
                 patchType: 'JSONPatch',
                 patch: Buffer.from(JSON.stringify(patches)).toString('base64'),
             },
         });
+    });
+
+    mutateServer.listen({ port: MUTATE_SEVER_PORT, host: '0.0.0.0' }, (error) => {
+        if (error) {
+            logger.error(error.message, { error });
+            process.exit(1);
+        }
+        logger.info(`Mutate server is listening on ${MUTATE_SEVER_PORT}`);
     });
 }
 

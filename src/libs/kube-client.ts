@@ -28,7 +28,23 @@ class KubernetesClient {
         this.kubeClient = kube.makeApiClient(CoreV1Api);
     }
 
-    async listSecretes(
+    async listSecret(params?: { labelSelector?: string }) {
+        const {
+            body: { items },
+        } = await this.kubeClient
+            .listSecretForAllNamespaces(undefined, undefined, undefined, params?.labelSelector)
+            .catch((error) => {
+                throw new KubernetesResponseError(error.message, error.response?.body);
+            });
+
+        return items.map((secret) => ({
+            name: secret.metadata?.name,
+            namespace: secret.metadata?.namespace,
+            data: secret.data && decodeValue(secret.data),
+        }));
+    }
+
+    async listNamespacedSecretes(
         namespace: string,
         params?: {
             labelSelector?: string;
@@ -49,7 +65,7 @@ class KubernetesClient {
         }));
     }
 
-    async getSecret(namespace: string, name: string) {
+    async getNamespacedSecret(namespace: string, name: string) {
         const { body } = await this.kubeClient.readNamespacedSecret(name, namespace).catch((error) => {
             throw new KubernetesResponseError(error.message, error.response?.body);
         });
@@ -61,7 +77,36 @@ class KubernetesClient {
         };
     }
 
-    async createSecret(
+    async upsertNamespacedSecret(
+        namespace: string,
+        name: string,
+        data: Record<string, string>,
+        params?: { labels?: Record<string, string> },
+    ) {
+        const secret = await this.getNamespacedSecret(namespace, name).catch(() => null);
+
+        if (secret) {
+            return this.patchNamespacedSecret(namespace, name, data);
+        }
+
+        return this.createNamespacedSecret(namespace, name, data, params);
+    }
+
+    async patchNamespacedSecret(namespace: string, name: string, data: Record<string, string>) {
+        const { body } = await this.kubeClient
+            .patchNamespacedSecret(name, namespace, { data: encodeValue(data) })
+            .catch((error) => {
+                throw new KubernetesResponseError(error.message, error.response?.body);
+            });
+
+        return {
+            name: body.metadata?.name,
+            namespace: body.metadata?.namespace,
+            data: body.data && decodeValue(body.data),
+        };
+    }
+
+    async createNamespacedSecret(
         namespace: string,
         name: string,
         data: Record<string, string>,
