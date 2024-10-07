@@ -182,7 +182,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                 path: `/spec/containers/${containerIndex}/volumeMounts/-`,
                 value: {
                     name: 'id-token',
-                    mountPath: `var/run/secrets/${ISSUER_DOMAIN}`,
+                    mountPath: `/var/run/secrets/${ISSUER_DOMAIN}`,
                 },
             });
         }
