@@ -35,14 +35,16 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                             return;
                         }
 
+                        console.log('data.token', data.token);
+
                         const { payload } = await jsonWebKeyProvider.verify(data.token);
 
-                        if (!payload.exp) {
-                            return;
-                        }
+                        console.log('payload', payload);
 
                         const { sub, name, group } = payload as { sub: string; name: string; group: string };
                         const idToken = await jsonWebKeyProvider.sign({ sub, name, group });
+
+                        console.log('idToken', idToken);
 
                         await kubeClient.patchNamespacedSecret(namespace, secretName, { token: idToken });
                     }),
