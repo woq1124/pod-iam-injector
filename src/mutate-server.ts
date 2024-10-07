@@ -2,7 +2,7 @@ import fs from 'fs';
 import { fastify } from 'fastify';
 import type { V1Pod } from '@kubernetes/client-node';
 import type JsonWebKeyProvider from './libs/provider';
-import kubeClient from './libs/kube-client';
+import kubeClient, { KubernetesResponseError } from './libs/kube-client';
 import logger from './libs/logger';
 import { CERTIFICATE_PATH, ISSUER_DOMAIN, MUTATE_SEVER_PORT, NAME, NAMESPACE, REFRESH_ID_TOKEN_CRON } from './configs';
 import { AdmissionReview, MutatePatch } from './types';
@@ -201,7 +201,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
     });
 
     await kubeClient.getNamespacedCronJob(NAMESPACE, 'refresh-id-token').catch((error) => {
-        if (error.response?.statusCode === 404) {
+        if (error instanceof KubernetesResponseError && error.response?.body.statusCode === 404) {
             return kubeClient.createNamespacedCronJob(NAMESPACE, {
                 metadata: {
                     name: 'refresh-id-token',

@@ -10,7 +10,7 @@ function encodeValue(data: Record<string, string>) {
     return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, Buffer.from(value).toString('base64')]));
 }
 
-class KubernetesResponseError extends Error {
+export class KubernetesResponseError extends Error {
     constructor(
         message: string,
         public response: any,
