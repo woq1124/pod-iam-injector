@@ -85,8 +85,10 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             const injectRequiredContainerNameSet = new Set(
                 (annotations[`${ISSUER_DOMAIN}/inject-containers`] ?? '')
                     .split(',')
+                    .filter(Boolean)
                     .map((containerName) => containerName.trim()),
             );
+
             if (!injectRequiredContainerNameSet.size) {
                 return [0];
             }
