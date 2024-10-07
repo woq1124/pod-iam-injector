@@ -90,11 +90,6 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                 .map((_, index) => index);
         })();
 
-        console.log('iamRole', iamRole);
-        console.log('name', name);
-        console.log('group', group);
-        console.log('containerIndies', containerIndies);
-
         if (!name || !namespace || !group || !iamRole) {
             res.send(nonMutateResponse(request.uid));
             return;
@@ -187,8 +182,6 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             });
         }
 
-        console.log('patches', patches);
-
         res.send({
             apiVersion: 'admission.k8s.io/v1',
             kind: 'AdmissionReview',
@@ -235,7 +228,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                                             image: 'curlimages/curl:latest',
                                             command: ['/bin/sh', '-c'],
                                             args: [
-                                                `echo "${tlsCert}" > /tmp/tls.cert && curl --cacert /tmp/tls.cert https://${NAME}.${NAMESPACE}:443/refresh && rm /tmp/tls.cert`,
+                                                `curl --k /tmp/tls.cert https://${NAME}.${NAMESPACE}.svc:443/refresh`,
                                             ],
                                         },
                                     ],
