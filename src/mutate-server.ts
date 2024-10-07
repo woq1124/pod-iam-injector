@@ -22,29 +22,21 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
     const mutateServer = fastify({ https: { key: tlsKey, cert: tlsCert } });
 
     mutateServer.post('/refresh', async (req, res) => {
-        console.log('refresh');
         await kubeClient
             .listSecret({
                 labelSelector: `app.kubernetes.io/component=web-identity-token,app.kubernetes.io/managed-by=${NAME}`,
             })
             .then(async (secrets) => {
-                console.log('secrets', secrets);
                 return Promise.all(
                     secrets.map(async ({ name: secretName, namespace, data }) => {
                         if (!secretName || !namespace || !data?.token) {
                             return;
                         }
 
-                        console.log('data.token', data.token);
-
                         const { payload } = await jsonWebKeyProvider.verify(data.token);
-
-                        console.log('payload', payload);
 
                         const { sub, name, group } = payload as { sub: string; name: string; group: string };
                         const idToken = await jsonWebKeyProvider.sign({ sub, name, group });
-
-                        console.log('idToken', idToken);
 
                         await kubeClient.patchNamespacedSecret(namespace, secretName, { token: idToken });
                     }),
