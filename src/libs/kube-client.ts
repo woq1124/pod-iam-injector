@@ -105,7 +105,19 @@ class KubernetesClient {
 
     async patchNamespacedSecret(namespace: string, name: string, data: Record<string, string>) {
         const { body } = await this.coreApiClient
-            .patchNamespacedSecret(name, namespace, { data: encodeValue(data) })
+            .patchNamespacedSecret(
+                name,
+                namespace,
+                { data: encodeValue(data) },
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                {
+                    headers: { 'Content-Type': 'application/strategic-merge-patch+json' },
+                },
+            )
             .catch((error) => {
                 throw new KubernetesResponseError(error.response?.body);
             });
