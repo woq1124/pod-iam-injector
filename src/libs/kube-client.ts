@@ -1,4 +1,4 @@
-import { KubeConfig, CoreV1Api } from '@kubernetes/client-node';
+import { KubeConfig, CoreV1Api, BatchV1Api, V1CronJob } from '@kubernetes/client-node';
 
 function decodeValue(data: Record<string, string>) {
     return Object.fromEntries(
@@ -20,18 +20,21 @@ class KubernetesResponseError extends Error {
 }
 
 class KubernetesClient {
-    kubeClient: CoreV1Api;
+    private coreApiClient: CoreV1Api;
+
+    private batchApiClient: BatchV1Api;
 
     constructor() {
         const kube = new KubeConfig();
         kube.loadFromDefault(); // NOTE: 로컬 환경이면 ~/.kube/config를 사용하고 POD 환경이면 /var/run/secrets/kubernetes.io/serviceaccount/token을 사용한다.
-        this.kubeClient = kube.makeApiClient(CoreV1Api);
+        this.coreApiClient = kube.makeApiClient(CoreV1Api);
+        this.batchApiClient = kube.makeApiClient(BatchV1Api);
     }
 
     async listSecret(params?: { labelSelector?: string }) {
         const {
             body: { items },
-        } = await this.kubeClient
+        } = await this.coreApiClient
             .listSecretForAllNamespaces(undefined, undefined, undefined, params?.labelSelector)
             .catch((error) => {
                 throw new KubernetesResponseError(error.message, error.response?.body);
@@ -52,7 +55,7 @@ class KubernetesClient {
     ) {
         const {
             body: { items },
-        } = await this.kubeClient
+        } = await this.coreApiClient
             .listNamespacedSecret(namespace, undefined, undefined, undefined, undefined, params?.labelSelector)
             .catch((error) => {
                 throw new KubernetesResponseError(error.message, error.response?.body);
@@ -66,7 +69,7 @@ class KubernetesClient {
     }
 
     async getNamespacedSecret(namespace: string, name: string) {
-        const { body } = await this.kubeClient.readNamespacedSecret(name, namespace).catch((error) => {
+        const { body } = await this.coreApiClient.readNamespacedSecret(name, namespace).catch((error) => {
             throw new KubernetesResponseError(error.message, error.response?.body);
         });
 
@@ -93,7 +96,7 @@ class KubernetesClient {
     }
 
     async patchNamespacedSecret(namespace: string, name: string, data: Record<string, string>) {
-        const { body } = await this.kubeClient
+        const { body } = await this.coreApiClient
             .patchNamespacedSecret(name, namespace, { data: encodeValue(data) })
             .catch((error) => {
                 throw new KubernetesResponseError(error.message, error.response?.body);
@@ -112,7 +115,7 @@ class KubernetesClient {
         data: Record<string, string>,
         params?: { labels?: Record<string, string> },
     ) {
-        const { body } = await this.kubeClient
+        const { body } = await this.coreApiClient
             .createNamespacedSecret(namespace, {
                 metadata: {
                     name,
@@ -129,6 +132,18 @@ class KubernetesClient {
             namespace: body.metadata?.namespace,
             data: body.data && decodeValue(body.data),
         };
+    }
+
+    async getNamespacedCronJob(namespace: string, name: string) {
+        const { body } = await this.batchApiClient.readNamespacedCronJob(name, namespace).catch((error) => {
+            throw new KubernetesResponseError(error.message, error.response?.body);
+        });
+
+        return body;
+    }
+
+    async createNamespacedCronJob(namespace: string, spec: V1CronJob) {
+        await this.batchApiClient.createNamespacedCronJob(namespace, spec);
     }
 }
 

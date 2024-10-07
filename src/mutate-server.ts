@@ -4,7 +4,7 @@ import type { V1Pod } from '@kubernetes/client-node';
 import type JsonWebKeyProvider from './libs/provider';
 import kubeClient from './libs/kube-client';
 import logger from './libs/logger';
-import { CERTIFICATE_PATH, ISSUER_DOMAIN, MUTATE_SEVER_PORT } from './configs';
+import { CERTIFICATE_PATH, ISSUER_DOMAIN, MUTATE_SEVER_PORT, NAME, NAMESPACE, REFRESH_ID_TOKEN_CRON } from './configs';
 import { AdmissionReview, MutatePatch } from './types';
 
 function nonMutateResponse(uid: string): Omit<AdmissionReview, 'request'> {
@@ -24,7 +24,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
     mutateServer.post('/refresh', async (req, res) => {
         await kubeClient
             .listSecret({
-                labelSelector: 'app.kubernetes.io/component=id-token,app.kubernetes.io/managed-by=pod-iam-injector',
+                labelSelector: `app.kubernetes.io/component=id-token,app.kubernetes.io/managed-by=${NAME}`,
             })
             .then(async (secrets) =>
                 Promise.all(
@@ -108,7 +108,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             {
                 labels: {
                     'app.kubernetes.io/component': 'id-token',
-                    'app.kubernetes.io/managed-by': 'pod-iam-injector',
+                    'app.kubernetes.io/managed-by': NAME,
                 },
             },
         );
@@ -198,6 +198,42 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             process.exit(1);
         }
         logger.info(`Mutate server is listening on ${MUTATE_SEVER_PORT}`);
+    });
+
+    await kubeClient.getNamespacedCronJob(NAMESPACE, 'refresh-id-token').catch((error) => {
+        if (error.response?.statusCode === 404) {
+            return kubeClient.createNamespacedCronJob(NAMESPACE, {
+                metadata: {
+                    name: 'refresh-id-token',
+                    namespace: NAMESPACE,
+                    labels: { 'app.kubernetes.io/component': 'refresh-id-token' },
+                },
+                spec: {
+                    schedule: REFRESH_ID_TOKEN_CRON,
+                    jobTemplate: {
+                        spec: {
+                            template: {
+                                spec: {
+                                    containers: [
+                                        {
+                                            name: 'refresh-id-token',
+                                            image: 'curlimages/curl:latest',
+                                            command: ['/bin/sh', '-c'],
+                                            args: [
+                                                `echo "${tlsCert}" > /tmp/tls.cert && curl --cacert /tmp/tls.cert https://${NAME}.${NAMESPACE}:443/refresh && rm /tmp/tls.cert`,
+                                            ],
+                                        },
+                                    ],
+                                    restartPolicy: 'OnFailure',
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        throw error;
     });
 }
 
