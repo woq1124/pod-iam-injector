@@ -207,6 +207,11 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
         });
     });
 
+    mutateServer.setErrorHandler((error, req, res) => {
+        logger.error(error.message, { error });
+        res.send({ error: error.message });
+    });
+
     mutateServer.listen({ port: MUTATE_SEVER_PORT, host: '0.0.0.0' }, (error) => {
         if (error) {
             logger.error(error.message, { error });
