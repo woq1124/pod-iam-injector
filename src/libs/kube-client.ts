@@ -12,10 +12,18 @@ function encodeValue(data: Record<string, string>) {
 
 export class KubernetesResponseError extends Error {
     constructor(
-        message: string,
-        public response: any,
+        public data: {
+            kind: string;
+            apiVersion: string;
+            metadata: Record<string, string>;
+            status: string;
+            message: string;
+            reason: string;
+            details: { name: string; group: string; kind: string };
+            code: number;
+        },
     ) {
-        super(message);
+        super(data.message);
     }
 }
 
@@ -37,7 +45,7 @@ class KubernetesClient {
         } = await this.coreApiClient
             .listSecretForAllNamespaces(undefined, undefined, undefined, params?.labelSelector)
             .catch((error) => {
-                throw new KubernetesResponseError(error.message, error.response?.body);
+                throw new KubernetesResponseError(error.response?.body);
             });
 
         return items.map((secret) => ({
@@ -58,7 +66,7 @@ class KubernetesClient {
         } = await this.coreApiClient
             .listNamespacedSecret(namespace, undefined, undefined, undefined, undefined, params?.labelSelector)
             .catch((error) => {
-                throw new KubernetesResponseError(error.message, error.response?.body);
+                throw new KubernetesResponseError(error.response?.body);
             });
 
         return items.map((secret) => ({
@@ -70,7 +78,7 @@ class KubernetesClient {
 
     async getNamespacedSecret(namespace: string, name: string) {
         const { body } = await this.coreApiClient.readNamespacedSecret(name, namespace).catch((error) => {
-            throw new KubernetesResponseError(error.message, error.response?.body);
+            throw new KubernetesResponseError(error.response?.body);
         });
 
         return {
@@ -99,7 +107,7 @@ class KubernetesClient {
         const { body } = await this.coreApiClient
             .patchNamespacedSecret(name, namespace, { data: encodeValue(data) })
             .catch((error) => {
-                throw new KubernetesResponseError(error.message, error.response?.body);
+                throw new KubernetesResponseError(error.response?.body);
             });
 
         return {
@@ -124,7 +132,7 @@ class KubernetesClient {
                 data: encodeValue(data),
             })
             .catch((error) => {
-                throw new KubernetesResponseError(error.message, error.response?.body);
+                throw new KubernetesResponseError(error.response?.body);
             });
 
         return {
@@ -136,7 +144,7 @@ class KubernetesClient {
 
     async getNamespacedCronJob(namespace: string, name: string) {
         const { body } = await this.batchApiClient.readNamespacedCronJob(name, namespace).catch((error) => {
-            throw new KubernetesResponseError(error.message, error.response?.body);
+            throw new KubernetesResponseError(error.response?.body);
         });
 
         return body;
