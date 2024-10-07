@@ -21,6 +21,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
 
     const mutateServer = fastify({ https: { key: tlsKey, cert: tlsCert } });
 
+    // TODO: 뭔가 이상한 것 같다.. 수정이 필요할 것 같다.
     mutateServer.post('/refresh', async (req, res) => {
         await kubeClient
             .listSecret({
