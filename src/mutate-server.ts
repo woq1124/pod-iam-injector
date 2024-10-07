@@ -25,7 +25,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
         console.log('refresh');
         await kubeClient
             .listSecret({
-                labelSelector: `app.kubernetes.io/component=id-token,app.kubernetes.io/managed-by=${NAME}`,
+                labelSelector: `app.kubernetes.io/component=web-identity-token,app.kubernetes.io/managed-by=${NAME}`,
             })
             .then(async (secrets) => {
                 console.log('secrets', secrets);
@@ -101,7 +101,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             group,
         });
 
-        const secretName = `${name}-id-token`;
+        const secretName = `${name}-web-identity-token`;
 
         await kubeClient.upsertNamespacedSecret(
             namespace,
@@ -109,7 +109,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             { token: idToken },
             {
                 labels: {
-                    'app.kubernetes.io/component': 'id-token',
+                    'app.kubernetes.io/component': 'web-identity-token',
                     'app.kubernetes.io/managed-by': NAME,
                 },
             },
@@ -129,7 +129,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             op: 'add',
             path: '/spec/volumes/-',
             value: {
-                name: 'id-token',
+                name: 'web-identity-token',
                 secret: {
                     secretName,
                 },
@@ -176,7 +176,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                 op: 'add',
                 path: `/spec/containers/${containerIndex}/volumeMounts/-`,
                 value: {
-                    name: 'id-token',
+                    name: 'web-identity-token',
                     mountPath: `/var/run/secrets/${ISSUER_DOMAIN}`,
                 },
             });
@@ -208,13 +208,13 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
     });
 
     // TODO: 이걸 어디로 빼야할까?
-    await kubeClient.getNamespacedCronJob(NAMESPACE, 'refresh-id-token').catch((error) => {
+    await kubeClient.getNamespacedCronJob(NAMESPACE, 'refresh-web-identity-token').catch((error) => {
         if (error instanceof KubernetesResponseError && error.data.code === 404) {
             return kubeClient.createNamespacedCronJob(NAMESPACE, {
                 metadata: {
-                    name: 'refresh-id-token',
+                    name: 'refresh-web-identity-token',
                     namespace: NAMESPACE,
-                    labels: { 'app.kubernetes.io/component': 'refresh-id-token' },
+                    labels: { 'app.kubernetes.io/component': 'refresh-web-identity-token' },
                 },
                 spec: {
                     schedule: REFRESH_ID_TOKEN_CRON,
@@ -227,7 +227,7 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                                 spec: {
                                     containers: [
                                         {
-                                            name: 'refresh-id-token',
+                                            name: 'refresh-web-identity-token',
                                             image: 'curlimages/curl:latest',
                                             command: ['/bin/sh', '-c'],
                                             args: [
