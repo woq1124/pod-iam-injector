@@ -2,9 +2,9 @@ import fs from 'fs';
 import { fastify } from 'fastify';
 import type { V1Pod } from '@kubernetes/client-node';
 import type JsonWebKeyProvider from './libs/provider';
-import kubeClient, { KubernetesResponseError } from './libs/kube-client';
+import kubeClient from './libs/kube-client';
 import logger from './libs/logger';
-import { CERTIFICATE_PATH, ISSUER_DOMAIN, MUTATE_SEVER_PORT, NAME, NAMESPACE, REFRESH_ID_TOKEN_CRON } from './configs';
+import { CERTIFICATE_PATH, ISSUER_DOMAIN, MUTATE_SEVER_PORT, NAME } from './configs';
 import { AdmissionReview, MutatePatch } from './types';
 
 function nonMutateResponse(uid: string): Omit<AdmissionReview, 'request'> {
@@ -200,46 +200,6 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
             process.exit(1);
         }
         logger.info(`Mutate server is listening on ${MUTATE_SEVER_PORT}`);
-    });
-
-    // TODO: 이걸 어디로 빼야할까?
-    await kubeClient.getNamespacedCronJob(NAMESPACE, 'refresh-web-identity-token').catch((error) => {
-        if (error instanceof KubernetesResponseError && error.data.code === 404) {
-            return kubeClient.createNamespacedCronJob(NAMESPACE, {
-                metadata: {
-                    name: 'refresh-web-identity-token',
-                    namespace: NAMESPACE,
-                    labels: { 'app.kubernetes.io/component': 'refresh-web-identity-token' },
-                },
-                spec: {
-                    schedule: REFRESH_ID_TOKEN_CRON,
-                    successfulJobsHistoryLimit: 0,
-                    failedJobsHistoryLimit: 1,
-                    jobTemplate: {
-                        spec: {
-                            backoffLimit: 3,
-                            template: {
-                                spec: {
-                                    containers: [
-                                        {
-                                            name: 'refresh-web-identity-token',
-                                            image: 'curlimages/curl:latest',
-                                            command: ['/bin/sh', '-c'],
-                                            args: [
-                                                `curl -k -X POST https://${NAME}.${NAMESPACE}.svc:443/refresh`, // TODO: 생각해보니까 NAME은 service name이어야 하는데..
-                                            ],
-                                        },
-                                    ],
-                                    restartPolicy: 'OnFailure',
-                                },
-                            },
-                        },
-                    },
-                },
-            });
-        }
-
-        throw error;
     });
 }
 

@@ -12,4 +12,3 @@ export const JSON_WEB_KEY_COUNT = process.env.JSON_WEB_KEY_COUNT ? parseInt(proc
 export const ID_TOKEN_EXPIRES_IN = process.env.ID_TOKEN_EXPIRES_IN ?? '25h';
 export const OIDC_PROVIDER_SERVER_PORT = 8080;
 export const MUTATE_SEVER_PORT = 8443;
-export const REFRESH_ID_TOKEN_CRON = process.env.REFRESH_ID_TOKEN_CRON ?? '0 18 * * *';
