@@ -14,9 +14,14 @@ async function main() {
         const newKeyPairs = await JsonWebKeyProvider.generateKeyPairs(JSON_WEB_KEY_COUNT - secrets.length);
         const newSecrets = await Promise.all(
             newKeyPairs.map((keyPair) =>
-                kubeClient.createNamespacedSecret(NAMESPACE, `json-web-key-${keyPair.kid.substring(0, 6)}`, keyPair, {
-                    labels: { 'app.kubernetes.io/component': 'json-web-key' },
-                }),
+                kubeClient.createNamespacedSecret(
+                    NAMESPACE,
+                    `json-web-key-${keyPair.kid.substring(0, 6).toLowerCase()}`,
+                    keyPair,
+                    {
+                        labels: { 'app.kubernetes.io/component': 'json-web-key' },
+                    },
+                ),
             ),
         );
         secrets.push(...newSecrets);
