@@ -30,7 +30,7 @@ async function launchOidcProvider(jsonWebKeyProvider: JsonWebKeyProvider) {
     });
 
     server.get('/keys', async (_req, res) => {
-        res.send(jwks);
+        res.send({ keys: jwks });
     });
 
     server.setErrorHandler((error, _req, res) => {
