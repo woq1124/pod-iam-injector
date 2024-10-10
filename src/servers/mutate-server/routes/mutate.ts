@@ -35,8 +35,6 @@ export default {
         const { serviceAccountName } = spec;
 
         const iamRole = annotations['iam.amazonaws.com/role'];
-        const name = annotations[`${ISSUER_DOMAIN}/name`] ?? serviceAccountName;
-        const group = annotations[`${ISSUER_DOMAIN}/group`] ?? namespace;
         const injectRequiredContainerNameSet = new Set(
             (annotations[`${ISSUER_DOMAIN}/inject-container`] ?? spec.containers[0].name)
                 .split(',')
@@ -44,16 +42,16 @@ export default {
                 .map((containerName) => containerName.trim()),
         );
 
-        if (!name || !namespace || !group || !iamRole) {
+        if (!namespace || !iamRole) {
             res.send(nonMutateResponse(request.uid));
             return;
         }
 
         const idToken = await jsonWebKeyProvider.sign({
-            sub: `${namespace}/${name}`,
+            sub: `system:serviceaccount:${namespace}:${serviceAccountName}`,
         });
 
-        const secretName = `${name}-web-identity-token`;
+        const secretName = `${serviceAccountName}-web-identity-token`;
 
         await kubeClient.upsertNamespacedSecret(
             namespace,
