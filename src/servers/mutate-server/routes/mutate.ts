@@ -37,22 +37,12 @@ export default {
         const iamRole = annotations['iam.amazonaws.com/role'];
         const name = annotations[`${ISSUER_DOMAIN}/name`] ?? serviceAccountName;
         const group = annotations[`${ISSUER_DOMAIN}/group`] ?? namespace;
-        const containerIndies = (() => {
-            const injectRequiredContainerNameSet = new Set(
-                (annotations[`${ISSUER_DOMAIN}/inject-containers`] ?? '')
-                    .split(',')
-                    .filter(Boolean)
-                    .map((containerName) => containerName.trim()),
-            );
-
-            if (!injectRequiredContainerNameSet.size) {
-                return [0];
-            }
-
-            return spec.containers
-                .filter(({ name: containerName }) => injectRequiredContainerNameSet.has(containerName))
-                .map((_, index) => index);
-        })();
+        const injectRequiredContainerNameSet = new Set(
+            (annotations[`${ISSUER_DOMAIN}/inject-container`] ?? spec.containers[0].name)
+                .split(',')
+                .filter(Boolean)
+                .map((containerName) => containerName.trim()),
+        );
 
         if (!name || !namespace || !group || !iamRole) {
             res.send(nonMutateResponse(request.uid));
@@ -100,11 +90,15 @@ export default {
             },
         });
 
-        for (const containerIndex of containerIndies) {
-            if (!spec.containers[containerIndex].env) {
+        spec.containers.forEach((container, index) => {
+            if (!injectRequiredContainerNameSet.has(container.name)) {
+                return;
+            }
+
+            if (!container.env) {
                 patches.push({
                     op: 'add',
-                    path: `/spec/containers/${containerIndex}/env`,
+                    path: `/spec/containers/${index}/env`,
                     value: [],
                 });
             }
@@ -112,7 +106,7 @@ export default {
             patches.push(
                 {
                     op: 'add',
-                    path: `/spec/containers/${containerIndex}/env/-`,
+                    path: `/spec/containers/${index}/env/-`,
                     value: {
                         name: 'AWS_WEB_IDENTITY_TOKEN_FILE',
                         value: `/var/run/secrets/${ISSUER_DOMAIN}/token`,
@@ -120,7 +114,7 @@ export default {
                 },
                 {
                     op: 'add',
-                    path: `/spec/containers/${containerIndex}/env/-`,
+                    path: `/spec/containers/${index}/env/-`,
                     value: {
                         name: 'AWS_ROLE_ARN',
                         value: iamRole,
@@ -128,23 +122,23 @@ export default {
                 },
             );
 
-            if (!spec.containers[containerIndex].volumeMounts) {
+            if (!container.volumeMounts) {
                 patches.push({
                     op: 'add',
-                    path: `/spec/containers/${containerIndex}/volumeMounts`,
+                    path: `/spec/containers/${index}/volumeMounts`,
                     value: [],
                 });
             }
 
             patches.push({
                 op: 'add',
-                path: `/spec/containers/${containerIndex}/volumeMounts/-`,
+                path: `/spec/containers/${index}/volumeMounts/-`,
                 value: {
                     name: 'web-identity-token',
                     mountPath: `/var/run/secrets/${ISSUER_DOMAIN}`,
                 },
             });
-        }
+        });
 
         res.send({
             apiVersion: 'admission.k8s.io/v1',
