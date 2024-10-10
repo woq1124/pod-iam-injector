@@ -25,8 +25,8 @@ export default {
 
                 const { payload } = await jsonWebKeyProvider.verify(data.token);
 
-                const { sub, name, group } = payload as { sub: string; name: string; group: string };
-                const idToken = await jsonWebKeyProvider.sign({ sub, name, group });
+                const { sub } = payload as { sub: string };
+                const idToken = await jsonWebKeyProvider.sign({ sub });
 
                 await kubeClient.patchNamespacedSecret(namespace, secretName, { token: idToken });
             }),
