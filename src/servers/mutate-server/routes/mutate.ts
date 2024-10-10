@@ -1,11 +1,8 @@
-import fs from 'fs';
-import { fastify } from 'fastify';
 import type { V1Pod } from '@kubernetes/client-node';
-import type JsonWebKeyProvider from './libs/provider';
-import kubeClient from './libs/kube-client';
-import logger from './libs/logger';
-import { CERTIFICATE_PATH, ISSUER_DOMAIN, MUTATE_SEVER_PORT, NAME } from './configs';
-import { AdmissionReview, MutatePatch } from './types';
+import { RouteOptions } from 'fastify';
+import kubeClient from '../../../libs/kube-client';
+import { ISSUER_DOMAIN, NAME } from '../../../configs';
+import { AdmissionReview, MutatePatch } from '../../../types';
 
 function nonMutateResponse(uid: string): Omit<AdmissionReview, 'request'> {
     return {
@@ -15,39 +12,11 @@ function nonMutateResponse(uid: string): Omit<AdmissionReview, 'request'> {
     };
 }
 
-async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
-    const tlsKey = fs.readFileSync(`${CERTIFICATE_PATH}/tls.key`, 'utf8');
-    const tlsCert = fs.readFileSync(`${CERTIFICATE_PATH}/tls.crt`, 'utf8');
-
-    const mutateServer = fastify({ https: { key: tlsKey, cert: tlsCert } });
-
-    // TODO: 뭔가 이상한 것 같다.. 수정이 필요할 것 같다.
-    mutateServer.post('/refresh', async (req, res) => {
-        await kubeClient
-            .listSecret({
-                labelSelector: `app.kubernetes.io/component=web-identity-token,app.kubernetes.io/managed-by=${NAME}`,
-            })
-            .then(async (secrets) => {
-                return Promise.all(
-                    secrets.map(async ({ name: secretName, namespace, data }) => {
-                        if (!secretName || !namespace || !data?.token) {
-                            return;
-                        }
-
-                        const { payload } = await jsonWebKeyProvider.verify(data.token);
-
-                        const { sub, name, group } = payload as { sub: string; name: string; group: string };
-                        const idToken = await jsonWebKeyProvider.sign({ sub, name, group });
-
-                        await kubeClient.patchNamespacedSecret(namespace, secretName, { token: idToken });
-                    }),
-                );
-            });
-
-        res.send({ success: true });
-    });
-
-    mutateServer.post('/mutate', async (req, res) => {
+export default {
+    method: 'POST',
+    url: '/mutate',
+    handler: async (req, res) => {
+        const { jsonWebKeyProvider } = req;
         const { request } = req.body as AdmissionReview;
 
         if (!request.object) {
@@ -187,20 +156,5 @@ async function launchMutateServer(jsonWebKeyProvider: JsonWebKeyProvider) {
                 patch: Buffer.from(JSON.stringify(patches)).toString('base64'),
             },
         });
-    });
-
-    mutateServer.setErrorHandler((error, req, res) => {
-        logger.error(error.message, { error });
-        res.send({ error: error.message });
-    });
-
-    mutateServer.listen({ port: MUTATE_SEVER_PORT, host: '0.0.0.0' }, (error) => {
-        if (error) {
-            logger.error(error.message, { error });
-            process.exit(1);
-        }
-        logger.info(`Mutate server is listening on ${MUTATE_SEVER_PORT}`);
-    });
-}
-
-export default launchMutateServer;
+    },
+} as RouteOptions;
