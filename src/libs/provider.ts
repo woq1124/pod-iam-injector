@@ -11,7 +11,7 @@ type SecretKeyPair = {
 class JsonWebKeyProvider {
     constructor(private keySets: Record<string, { publicKey: jose.KeyLike; privateKey: jose.KeyLike }>) {}
 
-    async sign(payload: { sub: string; name: string; group: string }) {
+    async sign(payload: { sub: string }) {
         const kid = Object.keys(this.keySets)[Math.floor(Math.random() * JSON_WEB_KEY_COUNT)];
 
         return new jose.SignJWT(payload)

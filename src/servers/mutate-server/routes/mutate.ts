@@ -50,9 +50,7 @@ export default {
         }
 
         const idToken = await jsonWebKeyProvider.sign({
-            sub: `system:pod:${namespace}:${name}`,
-            name,
-            group,
+            sub: `${namespace}/${name}`,
         });
 
         const secretName = `${name}-web-identity-token`;
