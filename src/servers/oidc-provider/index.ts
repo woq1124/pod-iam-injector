@@ -26,6 +26,7 @@ async function launchOidcProvider(jsonWebKeyProvider: JsonWebKeyProvider) {
             response_types_supported: ['id_token'],
             subject_types_supported: ['public'],
             id_token_signing_alg_values_supported: ['RS256'],
+            claims_supported: ['iss', 'sub', 'aud', 'iat', 'exp', 'name', 'group'],
         });
     });
 
