@@ -4,11 +4,11 @@ import JsonWebKeyProvider from './libs/provider';
 
 async function initializeJsonWebKeyProvider() {
     const secrets = await kubeClient.listNamespacedSecretes(NAMESPACE, {
-        labelSelector: 'app.kubernetes.io/component=json-web-key',
+        labelSelector: 'app.kubernetes.io/component=secret-key-pair',
     });
 
     if (!secrets.every((secret) => secret.data?.kid && secret.data?.publicKey && secret.data?.privateKey)) {
-        throw new Error('Failed to get json-web-key');
+        throw new Error('Failed to get secret key pair');
     }
 
     const jsonWebKeyProvider = await JsonWebKeyProvider.of(
@@ -24,9 +24,9 @@ async function initializeJsonWebKeyProvider() {
             keyPairs.map((keyPair) => {
                 kubeClient.upsertNamespacedSecret(
                     NAMESPACE,
-                    `json-web-key-${keyPair.kid.substring(0, 6).toLowerCase()}`,
+                    `secret-key-pair-${keyPair.kid.substring(0, 6).toLowerCase()}`,
                     keyPair,
-                    { labels: { 'app.kubernetes.io/component': 'json-web-key' } },
+                    { labels: { 'app.kubernetes.io/component': 'secret-key-pair' } },
                 );
             }),
         ),

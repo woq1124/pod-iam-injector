@@ -1,5 +1,6 @@
 import * as jose from 'jose';
 import { AUDIENCE, ID_TOKEN_EXPIRES_IN, ISSUER_URL, JSON_WEB_KEY_COUNT } from '../configs';
+import logger from './logger';
 
 type SecretKeyPair = {
     kid: string;
@@ -77,6 +78,8 @@ class JsonWebKeyProvider {
                 };
             }),
         );
+        logger.debug('Key pairs are loaded', { keyPairs });
+        logger.debug('New key pairs are generated', { newKeyPairs });
 
         return new JsonWebKeyProvider(
             [...keyPairs, ...newKeyPairs].reduce(
