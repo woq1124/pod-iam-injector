@@ -36,7 +36,7 @@ export default {
 
         const iamRole = annotations['iam.amazonaws.com/role'];
         const injectRequiredContainerNameSet = new Set(
-            (annotations[`${ISSUER_DOMAIN}/inject-container`] ?? spec.containers[0].name)
+            (annotations[`${ISSUER_DOMAIN}/inject-containers`] ?? spec.containers[0].name)
                 .split(',')
                 .filter(Boolean)
                 .map((containerName) => containerName.trim()),
