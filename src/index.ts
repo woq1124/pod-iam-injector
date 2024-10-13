@@ -8,6 +8,8 @@ async function main() {
 
     await launchOidcProvider(jsonWebKeyProvider);
     await launchMutateServer(jsonWebKeyProvider);
+
+    logger.info(`Started. COMMIT_HASH: ${process.env.COMMIT_HASH}`);
 }
 
 main().catch((error) => {
