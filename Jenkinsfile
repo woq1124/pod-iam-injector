@@ -19,7 +19,7 @@ worker('pod-iam-injector') {
 
     stage('Build') {
         container('docker') {
-            imageRepository = dockerBuild(imageName, commitHash.substring(0, 6), ["NODE_ENV=${env.NODE_ENV}", "COMMIT_HASH=${commitHash}"])
+            imageRepository = dockerBuild(imageName, commitHash.substring(0, 6), ["NODE_ENV=${env.NODE_ENV}", "COMMIT_HASH=${commitHash}"], '.', 'public')
         }
     }
 
